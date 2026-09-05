@@ -309,10 +309,10 @@ class OllamaBackend : LlmBackend {
                 if (j.optBoolean("done")) { requireComplete(j.nullableString("done_reason")); finished = true }
             }
             if (profile.streaming) {
-                val reader = response.body?.charStream()?.buffered() ?: error("Flux vide.")
+                val source = response.body?.source() ?: error("Flux vide.")
                 var size = 0
                 while (true) {
-                    val line = reader.readLine() ?: break
+                    val line = SafeHttp.boundedLine(source) ?: break
                     size += line.length; require(size < 8_000_000) { "Flux trop volumineux." }
                     if (line.isNotBlank()) receive(JSONObject(line))
                 }

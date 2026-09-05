@@ -109,7 +109,10 @@ class AssistantRuntime private constructor(private val context: Context) {
         val previous = store.history().takeLast(20).filter { it.role == "user" || it.role == "assistant" }.map { ConversationMessage(it.role, it.text) }
         store.append(ProfileStore.HistoryEntry("user", command))
         mutableState.value = AgentState.Running("Préparation de la demande…")
+        val previousTask = currentJob
         currentJob = scope.launch {
+            previousTask?.join()
+            mutableState.value = AgentState.Running("Préparation de la demande…")
             try {
                 val local = LocalCommands.parse(command)
                 val localOnly = local != null && (mode == "local" || profiles.isEmpty() || store.flag("local_shortcuts", true))
@@ -165,7 +168,7 @@ class AssistantRuntime private constructor(private val context: Context) {
         profile.validate()
         return when (Providers.info(profile.kind).capability) {
             "llm" -> {
-                val response = LlmRegistry.backend(profile).complete(profile.copy(streaming = false, tools = false, outputTokens = 32),
+                val response = LlmRegistry.backend(profile).complete(profile.copy(streaming = false, tools = false),
                     "Réponds simplement OK.", listOf(ConversationMessage("user", "Test de connexion.")), emptyList())
                 "Le modèle a répondu : ${response.text.take(300)}"
             }

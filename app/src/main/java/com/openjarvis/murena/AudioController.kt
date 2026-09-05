@@ -90,7 +90,7 @@ class AudioController(private val context: Context, private val store: ProfileSt
     }
     fun cancelMicrophone() {
         recording = false
-        inputJob?.cancel(); inputJob = null
+        inputJob?.cancel()
         try { audioRecord?.stop() } catch (_: Exception) { }
         if (Looper.myLooper() == Looper.getMainLooper()) recognizer?.cancel()
         else Handler(Looper.getMainLooper()).post { recognizer?.cancel() }
@@ -275,7 +275,7 @@ class AudioController(private val context: Context, private val store: ProfileSt
     }
     fun stopSpeech() {
         playbackCancelled = true
-        outputJob?.cancel(); outputJob = null
+        outputJob?.cancel()
         releasePlayback()
     }
     @Synchronized private fun releasePlayback() {

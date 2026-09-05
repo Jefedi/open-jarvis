@@ -81,7 +81,7 @@ class ApiSpeech : SpeechOutputProvider {
         val payload = payload(profile, text, true, "pcm", speed)
         SafeHttp.execute(profile, SafeHttp.request(profile, "audio/speech", "POST", payload.toString().toRequestBody(SafeHttp.jsonType))) { response ->
             var done = false
-            SafeHttp.readSse(response) { event, data ->
+            SafeHttp.readSse(response, maxChars = 64_000_000) { event, data ->
                 val j = JSONObject(data)
                 when (j.optString("type", event)) {
                     "speech.audio.delta" -> {

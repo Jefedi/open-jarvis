@@ -122,8 +122,8 @@ object SafeHttp {
         return source.readByteArray()
     }
     /** Dispatch complete SSE events only. Partial JSON is never executable. */
-    fun readSse(response: Response, receive: (String, String) -> Unit) {
-        val reader = response.body?.charStream()?.buffered() ?: throw IOException("Flux vide.")
+    fun readSse(response: Response, maxChars: Int = 8_000_000, receive: (String, String) -> Unit) {
+        val source = response.body?.source() ?: throw IOException("Flux vide.")
         var event = "message"
         val data = StringBuilder()
         var total = 0
@@ -132,9 +132,9 @@ object SafeHttp {
             data.setLength(0); event = "message"
         }
         while (true) {
-            val line = reader.readLine() ?: break
+            val line = boundedLine(source) ?: break
             total += line.length
-            require(total <= 8_000_000 && line.length <= 1_000_000) { "Flux trop volumineux." }
+            require(total <= maxChars && line.length <= 1_000_000) { "Flux trop volumineux." }
             when {
                 line.isEmpty() -> dispatch()
                 line.startsWith("event:") -> event = line.removePrefix("event:").trim()
@@ -142,6 +142,15 @@ object SafeHttp {
             }
         }
         dispatch()
+    }
+    /** Bound a line before allocating an untrusted SSE/NDJSON frame. */
+    fun boundedLine(source: okio.BufferedSource, limit: Long = 1_000_000): String? {
+        if (source.exhausted()) return null
+        return try { source.readUtf8LineStrict(limit) }
+        catch (_: java.io.EOFException) {
+            require(source.buffer.size <= limit) { "Trame réseau trop volumineuse." }
+            source.readUtf8()
+        }
     }
     fun safeError(error: Throwable): Exception = when (error) {
         is CancellationException -> error
