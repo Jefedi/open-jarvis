@@ -1,5 +1,6 @@
 package com.openjarvis.intelligence
 
+import com.openjarvis.accessibility.JarvisAccessibilityService
 import android.app.Notification
 import android.content.pm.PackageManager
 import android.service.notification.NotificationListenerService
@@ -16,6 +17,17 @@ class JarvisNotificationListener : NotificationListenerService() {
     private val notifications = mutableListOf<JarvisNotification>()
     
     companion object {
+        private val messagingApps = listOf(
+            "com.whatsapp",
+            "com.google.android.apps.messaging",
+            "com.samsung.android.messaging",
+            "com.instagram.android",
+            "com.facebook.orca",
+            "org.telegram.messenger",
+            "com.slack",
+            "com.discord"
+        )
+    
         private val PRIVACY_PROTECTED_APPS = setOf(
             "com.google.android.apps.nbu.paisa.user",
             "com.phonepe.app",
@@ -51,9 +63,7 @@ class JarvisNotificationListener : NotificationListenerService() {
         
         scope.launch {
             try {
-                graphifyRepo?.logNotification(
-                    "${parsed.packageName}: ${parsed.title}"
-                )
+                Unit // Notification contents are not persisted implicitly.
             } catch (e: Exception) { }
         }
     }
@@ -78,7 +88,7 @@ class JarvisNotificationListener : NotificationListenerService() {
         val isMessaging = sbn.packageName in messagingApps
         
         val sender = if (isMessaging) {
-            extras.getCharSequence(Notification.EXTRA_SENDER_TEXT)?.toString()
+            extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         } else null
         
         return JarvisNotification(
@@ -150,16 +160,4 @@ class JarvisNotificationListener : NotificationListenerService() {
         val sender: String?
     )
     
-    companion object {
-        private val messagingApps = listOf(
-            "com.whatsapp",
-            "com.google.android.apps.messaging",
-            "com.samsung.android.messaging",
-            "com.instagram.android",
-            "com.facebook.orca",
-            "org.telegram.messenger",
-            "com.slack",
-            "com.discord"
-        )
-    }
 }

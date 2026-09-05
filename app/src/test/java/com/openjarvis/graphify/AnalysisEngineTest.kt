@@ -5,7 +5,13 @@ import org.junit.Assert.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.Dispatchers
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [28])
 class AnalysisEngineTest {
+    @org.junit.Before fun clearDatabase() = kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+        GraphifyDB.getInstance(testContext()).clearAllTables()
+    }
+
 
     @Test
     fun `3 identical sequences should create PatternNode with confidence > 0`() = runTest(Dispatchers.IO) {
@@ -54,7 +60,7 @@ class AnalysisEngineTest {
         engine.decayAllPatterns()
 
         val patterns = repo.getActivePatterns(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000, 0.1f)
-        val decayedPattern = patterns.find { it.sequenceHash == "abc123" }
+        val decayedPattern = repo.getPatternByHash("abc123")
         
         assertNotNull("Pattern should still exist after decay", decayedPattern)
         assertTrue("Confidence should decay after 7 days", decayedPattern!!.confidence < 0.9f)
@@ -85,6 +91,6 @@ class AnalysisEngineTest {
     }
 
     private fun testContext(): android.content.Context {
-        return androidx.compose.ui.platform.LocalContext.current.applicationContext
+        return androidx.test.core.app.ApplicationProvider.getApplicationContext()
     }
 }

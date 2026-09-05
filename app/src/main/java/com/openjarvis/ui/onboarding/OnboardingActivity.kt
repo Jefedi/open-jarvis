@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
+import kotlinx.coroutines.flow.first
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
@@ -302,6 +303,9 @@ private fun ProviderCard(name: String, subtitle: String, modifier: Modifier = Mo
 
 @Composable
 private fun TryItScreen(onBack: () -> Unit, onSuccess: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val core = remember { com.openjarvis.agent.AgentCore(context) }
     var command by remember { mutableStateOf("Open Chrome and search for weather") }
     var isRunning by remember { mutableStateOf(false) }
     
@@ -360,10 +364,14 @@ private fun TryItScreen(onBack: () -> Unit, onSuccess: () -> Unit) {
         Button(
             onClick = {
                 isRunning = true
-                lifecycleScope.launch {
-                    delay(2000)
-                    isRunning = false
-                    onSuccess()
+                scope.launch {
+                    try {
+                        core.executeTask(command)
+                        val result = kotlinx.coroutines.withTimeout(120000) {
+                            core.state.first { it is com.openjarvis.agent.AgentState.Done || it is com.openjarvis.agent.AgentState.Error }
+                        }
+                        if (result is com.openjarvis.agent.AgentState.Done) onSuccess()
+                    } finally { isRunning = false }
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = VoidColor.Violet),

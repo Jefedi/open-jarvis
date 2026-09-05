@@ -20,7 +20,7 @@ class PromptEngine(private val context: Context) {
     suspend fun analyzeIntent(prompt: String): Intent = withContext(Dispatchers.IO) {
         val resolvedPrompt = conversationContext.resolveReferences(prompt)
         
-        val intentJson = IntentAnalyzer.analyze(resolvedPrompt)
+        val intentJson = IntentAnalyzer.analyze(resolvedPrompt, UniversalAdapter(context))
         
         parseIntentFromJson(resolvedPrompt, intentJson)
     }
@@ -191,8 +191,7 @@ Analyze the user's prompt and extract:
 Respond ONLY with JSON matching Intent schema.
     """.trimIndent()
     
-    suspend fun analyze(prompt: String): JSONObject = withContext(Dispatchers.IO) {
-        val adapter = UniversalAdapter.getModelManager(context)
+    suspend fun analyze(prompt: String, adapter: UniversalAdapter): JSONObject = withContext(Dispatchers.IO) {
         val fullPrompt = "$systemPrompt\n\nUser prompt: $prompt"
         
         val result = adapter.complete(systemPrompt, prompt)
@@ -234,7 +233,7 @@ class ConversationContext {
     private fun extractEntities(text: String, apps: List<String>) {
         val words = text.split(" ")
         for (word in words) {
-            if (word.first().isUpperCase() && word.length > 2) {
+            if (word.length > 2 && word.first().isUpperCase()) {
                 if (apps.isNotEmpty()) {
                     entityMemory[word.lowercase()] = "$word (${apps.first()})"
                 }

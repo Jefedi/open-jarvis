@@ -32,7 +32,7 @@ class AnalysisEngine(context: Context) {
         val hashCounts = mutableMapOf<String, Int>()
         for (seq in sequences) {
             val hash = hashSequence(seq)
-            hashCounts[hash] = hashCounts.getOrDefault(hash, 0) + 1
+            hashCounts[seq] = hashCounts.getOrDefault(seq, 0) + 1
         }
 
         for ((sequence, count) in hashCounts) {
