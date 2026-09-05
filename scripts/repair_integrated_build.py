@@ -49,7 +49,6 @@ p.write_text(s)
 replace('app/src/test/java/com/openjarvis/graphify/AnalysisEngineTest.kt', 'confidence > 0`()', 'positive confidence`()')
 replace('app/src/test/java/com/openjarvis/graphify/AnalysisEngineTest.kt', 'import kotlinx.coroutines.test.runTest', 'import kotlinx.coroutines.runBlocking')
 replace('app/src/test/java/com/openjarvis/graphify/AnalysisEngineTest.kt', 'runTest(Dispatchers.IO)', 'runBlocking(Dispatchers.IO)')
-# v1beta accepts JSON Schema here; the OpenAPI parameters field rejects additionalProperties.
 replace(base + 'murena/LlmBackends.kt', 'JSONArray(tools.map(::function))', 'JSONArray(tools.map { JSONObject().put("name", it.name).put("description", it.description).put("parametersJsonSchema", it.parameters) })')
 replace(base + 'murena/LlmBackends.kt', '.put("response", JSONObject().put("result", m.text))))', '.put("response", JSONObject().put("result", m.text)).apply { if (m.toolId.isNotBlank()) put("id", m.toolId) }))')
 replace(base + 'murena/LlmBackends.kt', '.apply { if (m.toolId.isNotBlank()) put("id", m.toolId) }', '.apply { if (messages.any { previous -> previous.protocol == "gemini" && previous.raw?.objects()?.any { part -> part.optJSONObject("functionCall")?.nullableString("id") == m.toolId } == true }) put("id", m.toolId) }')
@@ -58,4 +57,23 @@ s = p.read_text()
 declaration = '        val previousSpeech = outputJob\n'
 while declaration + declaration in s: s = s.replace(declaration + declaration, declaration)
 p.write_text(s)
-print('Integrated compiler and test-source fixes applied if needed.')
+replace(base + 'murena/AudioController.kt', '''        val recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,''', '''        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            error("L'autorisation du microphone a été retirée.")
+        }
+        val recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,''')
+replace('app/src/test/java/com/openjarvis/murena/ProtocolTests.kt', 'val j = JSONObject(request.body.readUtf8())', 'val j = JSONObject(request.body.clone().readUtf8())')
+replace(base + 'watch/ScreenWatcher.kt', '''    private fun showNotification(title: String, body: String) {''', '''    private fun showNotification(title: String, body: String) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return
+        }''')
+# These two upstream services have no callers and are intentionally not registered in
+# the Murena manifest. Keep their source as reference rather than grant unused background privileges.
+for name in ('ui/OverlayService.kt', 'local/DownloadService.kt'):
+    source = root / (base + name)
+    target = root / ('app/src/legacyReference/' + name + '.txt')
+    if source.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source.read_text())
+        source.unlink()
+print('Integrated compiler, permission and test-source fixes applied if needed.')
