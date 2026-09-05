@@ -51,6 +51,7 @@ class AudioController(private val context: Context, private val store: ProfileSt
     fun startMicrophone(onResult: (String) -> Unit) {
         if (inputJob?.isActive == true) { finishMicrophone(); return }
         val previousSpeech = outputJob
+        val previousSpeech = outputJob
         stopSpeech()
         if (!foreground) { mutableStatus.value = Status("error", "Ouvrez Jarvis pour utiliser le microphone."); return }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {

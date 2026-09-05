@@ -241,7 +241,7 @@ class GeminiBackend : LlmBackend {
         messages.forEach { m ->
             val parts = if (m.protocol == "gemini" && m.raw != null) m.raw else JSONArray().apply {
                 if (m.role == "tool") put(JSONObject().put("functionResponse", JSONObject().put("name", m.toolName)
-                    .put("response", JSONObject().put("result", m.text))))
+                    .put("response", JSONObject().put("result", m.text)).apply { if (m.toolId.isNotBlank()) put("id", m.toolId) }))
                 else {
                     if (m.text.isNotEmpty()) put(JSONObject().put("text", m.text))
                     m.calls.forEach { put(JSONObject().put("functionCall", JSONObject().put("name", it.name).put("args", it.arguments))) }
@@ -254,7 +254,7 @@ class GeminiBackend : LlmBackend {
         }
         val payload = JSONObject().put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
             .put("contents", contents).put("generationConfig", JSONObject().put("maxOutputTokens", profile.outputTokens).put("temperature", profile.temperature))
-        if (tools.isNotEmpty() && profile.tools) payload.put("tools", JSONArray().put(JSONObject().put("functionDeclarations", JSONArray(tools.map(::function)))))
+        if (tools.isNotEmpty() && profile.tools) payload.put("tools", JSONArray().put(JSONObject().put("functionDeclarations", JSONArray(tools.map { JSONObject().put("name", it.name).put("description", it.description).put("parametersJsonSchema", it.parameters) }))))
         val suffix = if (profile.streaming) "streamGenerateContent?alt=sse" else "generateContent"
         val path = "models/${profile.model}:$suffix"
         return SafeHttp.execute(profile, SafeHttp.request(profile, path, "POST", payload.toString().toRequestBody(SafeHttp.jsonType))) { response ->
