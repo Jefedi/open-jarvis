@@ -1,0 +1,77 @@
+name: Android - compilation et tests
+
+on:
+  push:
+    branches: [main, 'murena/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Installer Gradle 8.2.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2.1'
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Installer le SDK Android nécessaire
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Compiler, tester et analyser (sans clé API)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-results
+          gradle --no-daemon --console=plain --stacktrace --continue \
+            :app:assembleDebug :app:testDebugUnitTest :app:lintDebug \
+            2>&1 | tee ci-results/gradle.log
+      - name: Vérifier et identifier l'APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose "$apk"
+          sha256sum "$apk" > ci-results/APK-SHA256.txt
+          printf 'commit=%s\nvariant=debug\ndevice_tested=false\n' "$GITHUB_SHA" > ci-results/build-info.txt
+      - name: Publier l'APK de test
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-jarvis-debug-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            ci-results/APK-SHA256.txt
+            ci-results/build-info.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Conserver les diagnostics même en cas d'échec
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-${{ github.sha }}
+          path: |
+            ci-results/
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: warn
+          retention-days: 14
