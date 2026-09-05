@@ -139,6 +139,7 @@ private fun ChatView(runtime: AssistantRuntime, revision: Long, state: AgentStat
 
 @Composable
 private fun ProfilesView(runtime: AssistantRuntime, revision: Long) {
+    val context = LocalContext.current
     val profiles = remember(revision) { runtime.store.profiles() }
     var editing by remember { mutableStateOf<ConnectionProfile?>(null) }
     var deleting by remember { mutableStateOf<ConnectionProfile?>(null) }
@@ -147,7 +148,7 @@ private fun ProfilesView(runtime: AssistantRuntime, revision: Long) {
     val scope = rememberCoroutineScope()
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch { try {
-            withContext(Dispatchers.IO) { runtimeContext(runtime).contentResolver.openOutputStream(uri)?.use { it.write(runtime.store.exportRedacted().toByteArray()) } }
+            withContext(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.use { it.write(runtime.store.exportRedacted().toByteArray()) } }
             result = "Configuration exportée sans clés ni en-têtes personnalisés."
         } catch (_: Exception) { result = "L'export n'a pas pu être enregistré." } }
     }
@@ -402,14 +403,7 @@ private fun selectedImage(context: Context, uri: Uri): ByteArray {
             openSettings(context, intent)
         }) { Text("Choisir l'assistant par défaut") }
         Text("Le geste ou bouton d'assistant dépend de votre ROM. L'intégration ouvre Jarvis ; aucun microphone permanent n'est activé.")
-        OutlinedButton(onClick = { openSettings(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))) }) { Text("Autoriser le bouton flottant") }
-        Button(onClick = {
-            if (!Settings.canDrawOverlays(context)) openSettings(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
-            else { if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                ContextCompat.startForegroundService(context, Intent(context, AssistantBubbleService::class.java)) }
-        }) { Text("Afficher le bouton flottant") }
-        OutlinedButton(onClick = { context.stopService(Intent(context, AssistantBubbleService::class.java)) }) { Text("Retirer le bouton flottant") }
-        Text("Une tuile « Jarvis » est également disponible dans l'éditeur des réglages rapides Android.")
+        Text("Le lancement reste disponible depuis l'icône de l'application et le raccourci d'assistant Android lorsque la ROM accepte une activité ACTION_ASSIST. Le bouton flottant, la tuile et le service d'écoute permanent ne sont pas intégrés à cette version.")
         Divider(); Text("Confidentialité", style = MaterialTheme.typography.titleLarge)
         Toggle("Conserver un historique chiffré limité", store.flag("history", true), { store.setFlag("history", it); if (!it) store.clearHistory() })
         Text("L'historique est limité à 60 entrées. Les sons du microphone ne sont pas enregistrés sur disque. Les requêtes restent soumises à la politique de conservation de chaque fournisseur distant.")

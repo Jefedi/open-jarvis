@@ -56,7 +56,9 @@ class AudioController(private val context: Context, private val store: ProfileSt
             mutableStatus.value = Status("error", "L'autorisation du microphone est nécessaire."); return
         }
         val selected = store.selected(Roles.STT)
+        val previousInput = inputJob
         inputJob = scope.launch {
+            previousInput?.join()
             try {
                 val transcript = if (selected == Roles.ANDROID) recognizeAndroid() else {
                     val profile = store.profile(selected) ?: error("Choisissez un profil de transcription ou le moteur Android.")
@@ -97,7 +99,10 @@ class AudioController(private val context: Context, private val store: ProfileSt
         val recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,
             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minimum * 2, 8192))
         audioRecord = recorder
-        check(recorder.state == AudioRecord.STATE_INITIALIZED) { "Le microphone n'a pas pu être initialisé." }
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+            recorder.release(); audioRecord = null
+            error("Le microphone n'a pas pu être initialisé.")
+        }
         val output = ByteArrayOutputStream(); val buffer = ByteArray(3200)
         var heardSpeech = false; var silentSamples = 0
         val vad = store.flag("voice_end_detection", true)
@@ -159,10 +164,12 @@ class AudioController(private val context: Context, private val store: ProfileSt
     }
 
     fun speak(text: String) {
+        val previousOutput = outputJob
         stopSpeech()
         if (store.selected(Roles.TTS) == Roles.SILENT || text.isBlank()) return
-        playbackCancelled = false
         outputJob = scope.launch {
+            previousOutput?.join()
+            playbackCancelled = false
             try {
                 obtainAudioFocus()
                 val selected = store.selected(Roles.TTS)
@@ -172,9 +179,12 @@ class AudioController(private val context: Context, private val store: ProfileSt
                     mutableStatus.value = Status("speaking", "Voix — ${profile.name}")
                     for (segment in splitSpeech(text)) {
                         ensureActive()
-                        SpeechRegistry.output(profile).stream(profile, segment, store.speechSpeed()) { audio ->
-                            check(!playbackCancelled) { "Lecture arrêtée." }
-                            writeAudio(audio, if (profile.kind == "voxtral-tts") store.speechSpeed() else 1f)
+                        withContext(Dispatchers.IO) {
+                            SpeechRegistry.output(profile).stream(profile, segment, store.speechSpeed()) { audio ->
+                                check(!playbackCancelled) { "Lecture arrêtée." }
+                                try { writeAudio(audio, if (profile.kind == "voxtral-tts") store.speechSpeed() else 1f) }
+                                finally { audio.samples.fill(0) }
+                            }
                         }
                     }
                     // Drain the audio already accepted by AudioTrack before releasing it.
@@ -194,7 +204,7 @@ class AudioController(private val context: Context, private val store: ProfileSt
             finally { releasePlayback() }
         }
     }
-    private var writtenFrames = 0L
+    @Volatile private var writtenFrames = 0L
     private var trackRate = 0
     private var trackChannels = 0
     @Synchronized private fun createTrack(audio: PcmAudio, speed: Float): AudioTrack {

@@ -111,8 +111,9 @@ class AssistantRuntime private constructor(private val context: Context) {
         mutableState.value = AgentState.Running("Préparation de la demande…")
         currentJob = scope.launch {
             try {
-                val gateway = IntentTools(context, store, gate)
                 val local = LocalCommands.parse(command)
+                val localOnly = local != null && (mode == "local" || profiles.isEmpty() || store.flag("local_shortcuts", true))
+                val gateway = IntentTools(context, store, gate, includeRemote = !localOnly)
                 val result: String
                 if (local != null && (mode == "local" || profiles.isEmpty() || store.flag("local_shortcuts", true))) {
                     mutableProvider.value = "Commande Android locale — sans modèle IA"

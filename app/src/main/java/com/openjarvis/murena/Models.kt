@@ -75,9 +75,9 @@ object Providers {
         ProviderInfo("lmstudio", "LM Studio", "http://192.168.1.2:1234/v1", "", "llm", true, true),
         ProviderInfo("llamacpp", "llama.cpp server", "http://192.168.1.2:8080/v1", "", "llm", true, true),
         ProviderInfo("compatible", "API compatible OpenAI", "https://exemple.invalid/v1", "", "llm", true, true),
-        ProviderInfo("voxtral-stt", "Voxtral — transcription", "https://api.mistral.ai/v1", "voxtral-mini-latest", "stt"),
+        ProviderInfo("voxtral-stt", "Voxtral — transcription", "https://api.mistral.ai/v1", "voxtral-mini-latest", "stt", true),
         ProviderInfo("whisper", "Whisper / transcription compatible", "https://api.openai.com/v1", "whisper-1", "stt"),
-        ProviderInfo("voxtral-tts", "Voxtral — synthèse vocale", "https://api.mistral.ai/v1", "voxtral-mini-tts-2603", "tts"),
+        ProviderInfo("voxtral-tts", "Voxtral — synthèse vocale", "https://api.mistral.ai/v1", "voxtral-mini-tts-2603", "tts", true),
         ProviderInfo("openai-tts", "OpenAI / TTS compatible", "https://api.openai.com/v1", "tts-1", "tts"),
         ProviderInfo("kokoro", "Kokoro / Piper compatible OpenAI", "http://192.168.1.2:8880/v1", "kokoro", "tts"),
         ProviderInfo("mcp", "Serveur MCP (Streamable HTTP)", "https://exemple.invalid/mcp", "", "mcp"),
@@ -111,15 +111,20 @@ object Roles {
 
 data class ToolCall(val id: String, val name: String, val arguments: JSONObject)
 data class ToolDefinition(val name: String, val description: String, val parameters: JSONObject)
-data class ConversationMessage(val role: String, val text: String = "", val calls: List<ToolCall> = emptyList(), val toolId: String = "", val toolName: String = "")
-data class Completion(val text: String, val calls: List<ToolCall> = emptyList())
+data class ConversationMessage(val role: String, val text: String = "", val calls: List<ToolCall> = emptyList(), val toolId: String = "", val toolName: String = "", val raw: JSONArray? = null, val protocol: String = "")
+data class Completion(val text: String, val calls: List<ToolCall> = emptyList(), val raw: JSONArray? = null, val protocol: String = "")
 
 interface LlmBackend {
     suspend fun complete(profile: ConnectionProfile, system: String, messages: List<ConversationMessage>, tools: List<ToolDefinition>, onText: (String) -> Unit = {}): Completion
     suspend fun models(profile: ConnectionProfile): List<String>
 }
 interface SpeechToTextProvider { suspend fun transcribe(profile: ConnectionProfile, wav: ByteArray, language: String): String }
-interface SpeechOutputProvider { suspend fun synthesize(profile: ConnectionProfile, text: String, speed: Float): PcmAudio }
+interface SpeechOutputProvider {
+    suspend fun synthesize(profile: ConnectionProfile, text: String, speed: Float): PcmAudio
+    suspend fun stream(profile: ConnectionProfile, text: String, speed: Float, onChunk: (PcmAudio) -> Unit) {
+        onChunk(synthesize(profile, text, speed))
+    }
+}
 interface EmbeddingProvider { suspend fun embed(profile: ConnectionProfile, texts: List<String>): List<FloatArray> }
 interface VisionProvider { suspend fun describe(profile: ConnectionProfile, jpeg: ByteArray, question: String): String }
 

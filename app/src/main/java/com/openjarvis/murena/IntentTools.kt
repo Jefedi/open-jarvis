@@ -20,7 +20,7 @@ interface ToolGateway {
 }
 
 /** Only normal public Android intents. No UI clicking, privilege escalation or unattended sends. */
-class IntentTools(private val context: Context, private val store: ProfileStore, private val gate: ConfirmationGate) : ToolGateway {
+class IntentTools(private val context: Context, private val store: ProfileStore, private val gate: ConfirmationGate, private val includeRemote: Boolean = true) : ToolGateway {
     private data class Remote(val profile: ConnectionProfile, val original: ToolDefinition, val client: McpConnection)
     private val remote = mutableMapOf<String, Remote>()
     private val available = mutableMapOf<String, ToolDefinition>()
@@ -41,14 +41,14 @@ class IntentTools(private val context: Context, private val store: ProfileStore,
             definition("android_volume", "Régler uniquement le volume multimédia et relire sa valeur.", "percent" to "integer"),
             definition("android_media", "Transmettre play, pause, play_pause, next ou previous au lecteur multimédia.", "command" to "string")
         )
-        val homes = store.profiles().filter { it.kind == "homeassistant" && it.allowlist.isNotEmpty() }
+        val homes = (if (includeRemote) store.profiles() else emptyList()).filter { it.kind == "homeassistant" && it.allowlist.isNotEmpty() }
         if (homes.isNotEmpty()) {
             list.add(definition("homeassistant_entities", "Lister les entités autorisées. Profils : " + homes.joinToString { "${it.name} (${it.id})" }, "profile_id" to "string"))
             list.add(definition("homeassistant_state", "Lire l'état d'une entité explicitement autorisée.", "profile_id" to "string", "entity_id" to "string"))
             list.add(definition("homeassistant_service", "Appeler un service sur UNE entité autorisée, après confirmation ; relire ensuite son état.", "profile_id" to "string", "entity_id" to "string", "service" to "string", "data" to "object", required = listOf("profile_id", "entity_id", "service")))
         }
         remote.clear(); discoveryWarnings.clear()
-        store.profiles().filter { it.kind == "mcp" && it.allowlist.isNotEmpty() }.take(5).forEach { profile ->
+        (if (includeRemote) store.profiles() else emptyList()).filter { it.kind == "mcp" && it.allowlist.isNotEmpty() }.take(5).forEach { profile ->
             val client = McpConnection(profile)
             try {
                 client.listTools().filter { it.name in profile.allowlist }.take(30).forEach { original ->
