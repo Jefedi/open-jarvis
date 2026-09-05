@@ -20,16 +20,23 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Récupérer le code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Conserver les sources exactes de cet essai
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-results
+          git archive --format=zip --output=ci-results/sources.zip HEAD
+          printf 'commit=%s\nvariant=debug\ndevice_tested=false\n' "$GITHUB_SHA" > ci-results/build-info.txt
       - name: Installer Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: '17'
       - name: Installer Gradle 8.2.1
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
         with:
           gradle-version: '8.2.1'
           cache-read-only: ${{ github.event_name == 'pull_request' }}
@@ -37,12 +44,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          manager="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$manager" ]]; then
+            manager="$(find "$sdk/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          fi
+          test -x "$manager"
+          printf 'ANDROID_HOME=%s\n' "$sdk" >> "$GITHUB_ENV"
+          "$manager" --sdk_root="$sdk" 'platforms;android-34' 'build-tools;34.0.0' 2>&1 | tee ci-results/sdk.log
       - name: Compiler, tester et analyser (sans clé API)
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p ci-results
           gradle --no-daemon --console=plain --stacktrace --continue \
             :app:assembleDebug :app:testDebugUnitTest :app:lintDebug \
             2>&1 | tee ci-results/gradle.log
@@ -53,9 +66,8 @@ jobs:
           apk=app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose "$apk"
           sha256sum "$apk" > ci-results/APK-SHA256.txt
-          printf 'commit=%s\nvariant=debug\ndevice_tested=false\n' "$GITHUB_SHA" > ci-results/build-info.txt
       - name: Publier l'APK de test
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: open-jarvis-debug-${{ github.sha }}
           path: |
@@ -66,7 +78,7 @@ jobs:
           retention-days: 14
       - name: Conserver les diagnostics même en cas d'échec
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: diagnostics-${{ github.sha }}
           path: |
