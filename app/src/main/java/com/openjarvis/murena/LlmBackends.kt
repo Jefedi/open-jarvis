@@ -241,7 +241,7 @@ class GeminiBackend : LlmBackend {
         messages.forEach { m ->
             val parts = if (m.protocol == "gemini" && m.raw != null) m.raw else JSONArray().apply {
                 if (m.role == "tool") put(JSONObject().put("functionResponse", JSONObject().put("name", m.toolName)
-                    .put("response", JSONObject().put("result", m.text)).apply { if (m.toolId.isNotBlank()) put("id", m.toolId) }))
+                    .put("response", JSONObject().put("result", m.text)).apply { if (messages.any { previous -> previous.protocol == "gemini" && previous.raw?.objects()?.any { part -> part.optJSONObject("functionCall")?.nullableString("id") == m.toolId } == true }) put("id", m.toolId) }))
                 else {
                     if (m.text.isNotEmpty()) put(JSONObject().put("text", m.text))
                     m.calls.forEach { put(JSONObject().put("functionCall", JSONObject().put("name", it.name).put("args", it.arguments))) }
