@@ -13,7 +13,11 @@ for name in ('ui/OverlayService.kt', 'local/DownloadService.kt', 'watch/ScreenWa
 def replace(name, old, new):
     path = base / ('murena/' + name + '.kt')
     value = path.read_text()
-    if old in value and new not in value: path.write_text(value.replace(old, new))
+    if old not in value:
+        return
+    if old in new and new in value:
+        return
+    path.write_text(value.replace(old, new))
 # Retain cancelled jobs until the next session can join their final cleanup.
 replace('AudioController', 'inputJob?.cancel(); inputJob = null', 'inputJob?.cancel()')
 replace('AudioController', 'outputJob?.cancel(); outputJob = null', 'outputJob?.cancel()')
