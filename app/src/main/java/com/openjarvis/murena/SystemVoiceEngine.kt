@@ -26,6 +26,8 @@ class JarvisSystemTtsService : TextToSpeechService() {
         }
     } catch (_: Exception) { null }
 
+    override fun onGetFeaturesForLanguage(lang: String, country: String, variant: String): MutableSet<String> =
+        mutableSetOf(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)
     override fun onGetLanguage(): Array<String> = arrayOf("fra", "FRA", "")
     override fun onIsLanguageAvailable(lang: String, country: String, variant: String): Int {
         if (selectedProfile() == null) return TextToSpeech.LANG_MISSING_DATA

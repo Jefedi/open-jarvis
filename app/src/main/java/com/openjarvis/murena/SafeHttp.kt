@@ -55,12 +55,14 @@ object SafeHttp {
         .callTimeout(profile.timeoutSeconds.toLong(), TimeUnit.SECONDS)
         .readTimeout(profile.timeoutSeconds.toLong(), TimeUnit.SECONDS)
         .writeTimeout(profile.timeoutSeconds.toLong(), TimeUnit.SECONDS)
-        .dns(Dns { host ->
-            val addresses = Dns.SYSTEM.lookup(host)
-            if (!validateUrl(profile.url, profile.allowLocalHttp).isHttps && !addresses.all(::isLocal)) {
-                throw UnknownHostException("HTTP is restricted to explicitly enabled local networks")
+        .dns(object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> {
+                val addresses = Dns.SYSTEM.lookup(hostname)
+                if (!validateUrl(profile.url, profile.allowLocalHttp).isHttps && !addresses.all(::isLocal)) {
+                    throw UnknownHostException("HTTP is restricted to explicitly enabled local networks")
+                }
+                return addresses
             }
-            addresses
         }).build()
 
     fun request(profile: ConnectionProfile, path: String = "", method: String = "GET", body: RequestBody? = null,

@@ -50,6 +50,7 @@ class AudioController(private val context: Context, private val store: ProfileSt
 
     fun startMicrophone(onResult: (String) -> Unit) {
         if (inputJob?.isActive == true) { finishMicrophone(); return }
+        val previousSpeech = outputJob
         stopSpeech()
         if (!foreground) { mutableStatus.value = Status("error", "Ouvrez Jarvis pour utiliser le microphone."); return }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -59,6 +60,7 @@ class AudioController(private val context: Context, private val store: ProfileSt
         val previousInput = inputJob
         inputJob = scope.launch {
             previousInput?.join()
+            previousSpeech?.join()
             try {
                 val transcript = if (selected == Roles.ANDROID) recognizeAndroid() else {
                     val profile = store.profile(selected) ?: error("Choisissez un profil de transcription ou le moteur Android.")
@@ -109,7 +111,7 @@ class AudioController(private val context: Context, private val store: ProfileSt
         try {
             recording = true; recorder.startRecording()
             while (recording && currentCoroutineContext().isActive && output.size() < 16000 * 2 * 60) {
-                val count = recorder.read(buffer, 0, buffer.size())
+                val count = recorder.read(buffer, 0, buffer.size)
                 if (count < 0) { if (!recording) break; error("Le microphone a été interrompu.") }
                 if (count == 0) continue
                 output.write(buffer, 0, count)
