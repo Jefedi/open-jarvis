@@ -1,220 +1,131 @@
 package com.openjarvis.automation
 
 import android.content.Context
-import androidx.room.*
 import androidx.work.*
-import com.openjarvis.graphify.GraphifyRepository
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
+import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 class AutomationManager(private val context: Context) {
-    
-    private val db = AutomationDB.getInstance(context)
-    private val dao = db.automationDao()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    
+    private val dao = AutomationDB.getInstance(context).automationDao()
     private val _automationsFlow = MutableStateFlow<List<Automation>>(emptyList())
     val automationsFlow: StateFlow<List<Automation>> = _automationsFlow
-    
-    suspend fun loadAutomations() {
-        _automationsFlow.value = dao.getAll()
-    }
-    
+
+    suspend fun loadAutomations() { _automationsFlow.value = dao.getAll() }
     suspend fun createAutomation(automation: Automation): String = withContext(Dispatchers.IO) {
+        validateSchedule(automation.schedule)
         dao.insert(automation)
-        
-        scheduleAutomation(automation)
-        
-        _automationsFlow.value = dao.getAll()
+        if (automation.enabled) scheduleAutomation(automation)
+        loadAutomations()
         automation.id
     }
-    
     suspend fun updateAutomation(automation: Automation) = withContext(Dispatchers.IO) {
+        validateSchedule(automation.schedule)
         dao.update(automation)
         cancelAutomation(automation.id)
-        
-        if (automation.enabled) {
-            scheduleAutomation(automation)
-        }
-        
-        _automationsFlow.value = dao.getAll()
+        if (automation.enabled) scheduleAutomation(automation)
+        loadAutomations()
     }
-    
     suspend fun deleteAutomation(id: String) = withContext(Dispatchers.IO) {
-        cancelAutomation(id)
-        dao.delete(id)
-        _automationsFlow.value = dao.getAll()
+        cancelAutomation(id); dao.delete(id); loadAutomations()
     }
-    
     suspend fun toggleAutomation(id: String, enabled: Boolean) = withContext(Dispatchers.IO) {
         val automation = dao.getById(id) ?: return@withContext
         val updated = automation.copy(enabled = enabled)
+        validateSchedule(updated.schedule)
         dao.update(updated)
-        
-        if (enabled) {
-            scheduleAutomation(updated)
-        } else {
-            cancelAutomation(id)
-        }
-        
-        _automationsFlow.value = dao.getAll()
+        if (enabled) scheduleAutomation(updated) else cancelAutomation(id)
+        loadAutomations()
     }
-    
     suspend fun runNow(id: String) = withContext(Dispatchers.IO) {
         val automation = dao.getById(id) ?: return@withContext
-        executeAutomation(automation)
+        dao.update(automation.copy(lastResult = "Non exécuté : moteur d'automatisation non raccordé."))
+        loadAutomations()
     }
-    
-    private suspend fun scheduleAutomation(automation: Automation) {
-        val constraints = Constraints.Builder()
-            .setRequiresBatteryNotLow(false)
-            .build()
-        
-        val inputData = workDataOf(
-            "automation_id" to automation.id,
-            "automation_command" to automation.command
-        )
-        
-        val request = when (val schedule = automation.schedule) {
-            is AutomationSchedule.Daily -> {
-                PeriodicWorkRequestBuilder<AutomationWorker>(
-                    24, TimeUnit.HOURS,
-                    15, TimeUnit.MINUTES
-                )
-                    .setConstraints(constraints)
-                    .setInputData(inputData)
-                    .setInitialDelay(calculateDelay(schedule.hour, schedule.minute), TimeUnit.MILLISECONDS)
-                    .addTag(automation.id)
-                    .build()
-            }
-            is AutomationSchedule.Weekly -> {
-                PeriodicWorkRequestBuilder<AutomationWorker>(
-                    7, TimeUnit.DAYS,
-                    15, TimeUnit.MINUTES
-                )
-                    .setConstraints(constraints)
-                    .setInputData(inputData)
-                    .setInitialDelay(calculateWeeklyDelay(schedule.dayOfWeek, schedule.hour, schedule.minute), TimeUnit.MILLISECONDS)
-                    .addTag(automation.id)
-                    .build()
-            }
-            is AutomationSchedule.Interval -> {
-                PeriodicWorkRequestBuilder<AutomationWorker>(
-                    schedule.intervalMs, TimeUnit.MILLISECONDS,
-                    1, TimeUnit.MINUTES
-                )
-                    .setConstraints(constraints)
-                    .setInputData(inputData)
-                    .addTag(automation.id)
-                    .build()
-            }
-            is AutomationSchedule.Once -> {
-                val delay = schedule.atMs - System.currentTimeMillis()
-                if (delay <= 0) return
-                
-                OneTimeWorkRequestBuilder<AutomationWorker>()
-                    .setConstraints(constraints)
-                    .setInputData(inputData)
-                    .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-                    .addTag(automation.id)
-                    .build()
-            }
+
+    private fun scheduleAutomation(automation: Automation) {
+        validateSchedule(automation.schedule)
+        val input = workDataOf("automation_id" to automation.id, "automation_command" to automation.command)
+        val constraints = Constraints.Builder().setRequiresBatteryNotLow(false).build()
+        val manager = WorkManager.getInstance(context)
+        val schedule = automation.schedule
+        if (schedule is AutomationSchedule.Once) {
+            val delay = schedule.atMs - System.currentTimeMillis()
+            require(delay > 0) { "La date doit être dans le futur." }
+            val request = OneTimeWorkRequestBuilder<AutomationWorker>().setInputData(input)
+                .setConstraints(constraints).setInitialDelay(delay, TimeUnit.MILLISECONDS).addTag(automation.id).build()
+            manager.enqueueUniqueWork(automation.id, ExistingWorkPolicy.REPLACE, request)
+            return
         }
-        
-        WorkManager.getInstance(context)
-            .enqueueUniqueWork(automation.id, ExistingWorkPolicy.REPLACE, request)
-    }
-    
-    private fun cancelAutomation(id: String) {
-        WorkManager.getInstance(context).cancelAllWorkByTag(id)
-    }
-    
-    private suspend fun executeAutomation(automation: Automation) {
-        val result = try {
-            "success"
-        } catch (e: Exception) {
-            "error: ${e.message}"
+        val interval = when (schedule) {
+            is AutomationSchedule.Daily -> TimeUnit.DAYS.toMillis(1)
+            is AutomationSchedule.Weekly -> TimeUnit.DAYS.toMillis(7)
+            is AutomationSchedule.Interval -> schedule.intervalMs
+            is AutomationSchedule.Once -> error("Handled above")
         }
-        
-        val updated = automation.copy(
-            lastRun = System.currentTimeMillis(),
-            lastResult = result,
-            runCount = automation.runCount + 1
-        )
-        dao.update(updated)
+        val initialDelay = when (schedule) {
+            is AutomationSchedule.Daily -> calendarDelay(null, schedule.hour, schedule.minute)
+            is AutomationSchedule.Weekly -> calendarDelay(schedule.dayOfWeek, schedule.hour, schedule.minute)
+            else -> 0L
+        }
+        val request = PeriodicWorkRequestBuilder<AutomationWorker>(interval, TimeUnit.MILLISECONDS)
+            .setInputData(input).setConstraints(constraints)
+            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS).addTag(automation.id).build()
+        manager.enqueueUniquePeriodicWork(automation.id, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
-    
-    private fun calculateDelay(targetHour: Int, targetMinute: Int): Long {
-        val cal = java.util.Calendar.getInstance()
-        val now = cal.timeInMillis
-        
-        cal.set(java.util.Calendar.HOUR_OF_DAY, targetHour)
-        cal.set(java.util.Calendar.MINUTE, targetMinute)
-        cal.set(java.util.Calendar.SECOND, 0)
-        
-        var delay = cal.timeInMillis - now
-        if (delay < 0) delay += 24 * 60 * 60 * 1000
-        
-        return delay
+
+    private fun cancelAutomation(id: String) { WorkManager.getInstance(context).cancelAllWorkByTag(id) }
+    private fun calendarDelay(dayOfWeek: Int?, hour: Int, minute: Int): Long {
+        val now = System.currentTimeMillis()
+        val target = Calendar.getInstance().apply {
+            if (dayOfWeek != null) set(Calendar.DAY_OF_WEEK, dayOfWeek)
+            set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            if (timeInMillis <= now) add(Calendar.DAY_OF_YEAR, if (dayOfWeek == null) 1 else 7)
+        }
+        return target.timeInMillis - now
     }
-    
-    private fun calculateWeeklyDelay(dayOfWeek: Int, targetHour: Int, targetMinute: Int): Long {
-        val cal = java.util.Calendar.getInstance()
-        val now = cal.timeInMillis
-        
-        cal.set(java.util.Calendar.DAY_OF_WEEK, dayOfWeek)
-        cal.set(java.util.Calendar.HOUR_OF_DAY, targetHour)
-        cal.set(java.util.Calendar.MINUTE, targetMinute)
-        cal.set(java.util.Calendar.SECOND, 0)
-        
-        var delay = cal.timeInMillis - now
-        if (delay < 0) delay += 7 * 24 * 60 * 60 * 1000
-        
-        return delay
+    private fun validateSchedule(schedule: AutomationSchedule) {
+        when (schedule) {
+            is AutomationSchedule.Daily -> require(schedule.hour in 0..23 && schedule.minute in 0..59)
+            is AutomationSchedule.Weekly -> require(schedule.dayOfWeek in 1..7 && schedule.hour in 0..23 && schedule.minute in 0..59)
+            is AutomationSchedule.Interval -> require(schedule.intervalMs >= TimeUnit.MINUTES.toMillis(15)) {
+                "WorkManager exige au minimum 15 minutes entre deux exécutions."
+            }
+            is AutomationSchedule.Once -> require(schedule.atMs > 0)
+        }
     }
-    
+
     fun parseSchedule(input: String): AutomationSchedule? {
-        val lower = input.lowercase()
-        
-        val dailyMatch = Regex("""every day at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?""", RegexOption.IGNORE_CASE).find(lower)
-        if (dailyMatch != null) {
-            var hour = dailyMatch.groupValues[1].toInt()
-            val minute = dailyMatch.groupValues[2].toIntOrNull() ?: 0
-            val isPM = dailyMatch.groupValues[3].lowercase() == "pm"
-            if (isPM && hour != 12) hour += 12
-            if (!isPM && hour == 12) hour = 0
-            return AutomationSchedule.Daily(hour, minute)
-        }
-        
-        val intervalMatch = Regex("""every (\d+)\s*(minute|hour|day)s?""", RegexOption.IGNORE_CASE).find(lower)
-        if (intervalMatch != null) {
-            val value = intervalMatch.groupValues[1].toInt()
-            val unit = intervalMatch.groupValues[2]
-            val ms = when (unit) {
-                "minute" -> value * 60 * 1000L
-                "hour" -> value * 60 * 60 * 1000L
-                "day" -> value * 24 * 60 * 60 * 1000L
-                else -> 60 * 60 * 1000L
+        val daily = Regex("""every day at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?""", RegexOption.IGNORE_CASE).find(input)
+        if (daily != null) {
+            var hour = daily.groupValues[1].toIntOrNull() ?: return null
+            val minute = daily.groupValues[2].toIntOrNull() ?: 0
+            val suffix = daily.groupValues[3].lowercase()
+            if (suffix.isNotEmpty()) {
+                if (hour !in 1..12) return null
+                hour = hour % 12 + if (suffix == "pm") 12 else 0
             }
-            return AutomationSchedule.Interval(ms)
+            return if (hour in 0..23 && minute in 0..59) AutomationSchedule.Daily(hour, minute) else null
         }
-        
-        return null
+        val interval = Regex("""every (\d+)\s*(minute|hour|day)s?""", RegexOption.IGNORE_CASE).find(input) ?: return null
+        val value = interval.groupValues[1].toLongOrNull() ?: return null
+        val multiplier = when (interval.groupValues[2].lowercase()) {
+            "minute" -> 60_000L
+            "hour" -> 3_600_000L
+            else -> 86_400_000L
+        }
+        if (value > Long.MAX_VALUE / multiplier) return null
+        val ms = value * multiplier
+        return if (ms >= 900_000) AutomationSchedule.Interval(ms) else null
     }
-    
-    data class Automation(
-        val id: String,
-        val name: String,
-        val command: String,
-        val schedule: AutomationSchedule,
-        val enabled: Boolean = true,
-        val lastRun: Long? = null,
-        val lastResult: String? = null,
-        val runCount: Int = 0
-    )
-    
+
+    data class Automation(val id: String, val name: String, val command: String,
+        val schedule: AutomationSchedule, val enabled: Boolean = true,
+        val lastRun: Long? = null, val lastResult: String? = null, val runCount: Int = 0)
     sealed class AutomationSchedule {
         data class Daily(val hour: Int, val minute: Int) : AutomationSchedule()
         data class Weekly(val dayOfWeek: Int, val hour: Int, val minute: Int) : AutomationSchedule()

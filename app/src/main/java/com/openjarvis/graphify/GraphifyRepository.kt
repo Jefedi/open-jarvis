@@ -167,7 +167,22 @@ class GraphifyRepository(context: Context) {
     }
 
     suspend fun findContactByName(name: String): ContactNode? = withContext(Dispatchers.IO) {
-        contactNodeDao.findByNameOrPhone(name.lowercase(), "%${name}%")
+        contactNodeDao.findByNameOrPhone(name.lowercase(), name) ?: run {
+            val target = name.lowercase()
+            contactNodeDao.getRecentContacts(1000).filter { contact ->
+                val candidate = contact.name.lowercase()
+                var previous = IntArray(candidate.length + 1) { it }
+                for ((i, c) in target.withIndex()) {
+                    val current = IntArray(candidate.length + 1)
+                    current[0] = i + 1
+                    for (j in candidate.indices) current[j + 1] = minOf(
+                        current[j] + 1, previous[j + 1] + 1,
+                        previous[j] + if (c == candidate[j]) 0 else 1)
+                    previous = current
+                }
+                previous.last() <= 2
+            }.singleOrNull()
+        }
     }
 
     suspend fun incrementContact(id: Long) = withContext(Dispatchers.IO) {
@@ -197,7 +212,7 @@ class GraphifyRepository(context: Context) {
         }
 
     suspend fun updatePatternTimeMask(id: Long, timeMask: Int) = withContext(Dispatchers.IO) {
-        patternNodeDao.getByHash("").let { }
+        patternNodeDao.getById(id)?.let { patternNodeDao.update(it.copy(timeOfDayMask = timeMask)) }
     }
 
     suspend fun insertProvider(provider: ProviderNode): Long = withContext(Dispatchers.IO) {

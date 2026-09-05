@@ -39,7 +39,7 @@ class SocketServer(
     private fun isAuthorized(): Boolean {
         return try {
             val callingUid = Process.myUid()
-            callingUid in allowedUids
+            false // A TCP socket has no Android caller UID; fail closed.
         } catch (e: Exception) {
             false
         }
@@ -52,7 +52,7 @@ class SocketServer(
     }
     
     fun start() {
-        if (isRunning) return
+        if (isRunning || !context.getSharedPreferences("jarvis_prefs", 0).getBoolean("bridge_enabled", false)) return
         
         isRunning = true
         scope.launch {
@@ -77,7 +77,7 @@ class SocketServer(
 
     private suspend fun acceptConnections() = withContext(Dispatchers.IO) {
         try {
-            serverSocket = ServerSocket(0)
+            serverSocket = ServerSocket(0, 4, java.net.InetAddress.getLoopbackAddress())
             runningPort = serverSocket?.localPort ?: 0
             
             val sockFile = socketFile
@@ -213,7 +213,7 @@ class SocketServer(
         job.join()
     }
 
-    private fun parseRequest(line: String): Pair<String, String>? {
+    internal fun parseRequest(line: String): Pair<String, String>? {
         return try {
             val json = org.json.JSONObject(line)
             val cmd = json.optString("cmd", "")
@@ -239,7 +239,5 @@ class SocketServer(
             .replace("\t", "\\t")
     }
 
-    companion object {
-        const val SOCKET_NAME = "jarvis.port"
-    }
+
 }

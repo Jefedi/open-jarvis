@@ -1,441 +1,79 @@
-# OPEN JARVIS
+# Open Jarvis — édition Murena
 
-```
-██████╗ ███████╗██╗   ██╗
-██╔══██╗██╔════╝██║   ██║
-██║  ██║█████╗  ██║   ██║
-██║  ██║██╔══╝  ╚██╗ ██╔╝
-██████╔╝██║      ╚████╔╝ 
-╚═════╝ ╚═╝       ╚═══╝  
-```
+Fork de **[tokenarc/open-jarvis](https://github.com/tokenarc/open-jarvis)**, licence MIT conservée. Cette branche fournit une interface française et un nouveau moteur modulaire ; ce n'est pas un autre projet nommé OpenJarvis.
 
-## What Is This
+> Version de développement `0.2.0-murena-preview`. Une compilation réussie ne valide ni tous les fournisseurs réels, ni une ROM particulière. Consulter les rapports associés au SHA exact dans GitHub Actions. Le contrôle universel du téléphone, le moteur LLM natif dans l'appareil et l'écoute permanente ne sont pas fournis par cette édition.
 
-**Give Jarvis a prompt. It handles everything.**
+## Fonctionnalités raccordées
 
-Open Jarvis is an autonomous Android AI agent that accepts natural language
-
-[![Android](https://img.shields.io/badge/Android-8.0%2B-brightgreen)](https://developer.android.com)
-[![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue)](https://kotlinlang.org)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/tokenarc/open-jarvis)](https://github.com/tokenarc/open-jarvis/stargazers)
-
----
-
-## Feature Status
-
-| Feature | Status | Milestone |
-|---|---|---|
-| Accessibility Service + App Launcher | ✅ Live | M1 |
-| Premium VOID UI (Compose, animated) | ✅ Live | M1.5 |
-| LLM Wiring (Groq, Gemini, Anthropic, OpenRouter, Custom) | ✅ Live | M2 |
-| OCR + Screen Vision | ✅ Live | M2 |
-| Voice Input (STT) + TTS | ✅ Live | M3 |
-| Graphify Memory Graph | ✅ Live | M4 |
-| Pattern Learning + Smart Suggestions | ✅ Live | M4 |
-| Termux CLI Bridge | ✅ Live | M5 |
-| App Intelligence + AI App Chaining | ✅ Live | M6-AI |
-| Local Model (offline) | ✅ Live | M6 |
-| Skills System | ✅ Live | M6.5 |
-| MCP Server Support | ✅ Live | M6.5 |
-| Screen Watch Mode | ✅ Live | M6.5 |
-| Automation Scheduler | ✅ Live | M6.5 |
-| Conversation Mode | ✅ Live | M6.8 |
-| Notification Intelligence | ✅ Live | M6.8 |
-| Tutorial Mode | ✅ Live | M6.8 |
-| Prompt Library | ✅ Live | M6.8 |
-| Risky Action Confirmation | ✅ Live | M6.8 |
-| Onboarding Flow | ✅ Live | M6.8 |
-| Clipboard Intelligence | ✅ Live | M6.8 |
-| Self-Healing Executor | ✅ Live | M6.8 |
-| Multi-Phase Prompt Engine | ✅ Live | M6.8 |
-| App Builder Mode | ✅ Live | M7 |
-| Optimization + Public Release | ✅ Live | M8 |
-
----
-
-## How It Works
-
-### The Core Loop
-
-```
-┌─────────────┐    ┌───────────────┐    ┌─────────────┐    ┌──────────┐
-│   USER    │───▶│  GRAPHIFY  │───▶│ TASK     │───▶│   LLM   │
-│  INPUT   │    │  MEMORY   │    │ ROUTER   │    │  BRAIN  │
-└─────────────┘    └───────────────┘    └─────────────┘    └────┬────┘
-                                                      │
-                                                      ▼
-┌─────────────┐    ┌───────────────┐    ┌──────────┐    ┌──────────┐
-│  SPEAK    │◀───│   STORE   │◀───│ VERIFY  │◀───│ ACTION  │
-│  RESULT   │    │  MEMORY   │    │SCREEN  │    │  PLAN   │
-└─────────────┘    └───────────────┘    └──────────┘    └──────────┘
-```
-
-1. **User Input** — Voice (push-to-talk or VAD) or text via floating overlay
-2. **Graphify Memory Query** — Retrieves recent tasks, patterns, contacts, provider stats
-3. **Task Router** — Analyzes command, picks best installed app automatically
-4. **LLM Brain** — Generates action plan using system prompt + context
-5. **Action Plan** — JSON array of atomic actions (open_app, tap, type, etc.)
-6. **Accessibility Executor** — Executes actions via Android AccessibilityService
-7. **Screen Verify** — Reads screen after each action to confirm success
-8. **Speak + Store** — TTS reads result, logs to Graphify memory
-
----
-
-### App Intelligence
-
-Jarvis analyzes every installed app on your device:
-
-- **Categories**: Productivity, Communication, Social, Entertainment, Browser, etc.
-- **Capabilities**: Search, AI Reasoning, Messaging, File I/O, Navigation, etc.
-- **Trust Scores**: Tracks success/failure per app, adjusts behavior automatically
-- **AI App Detection**: Recognizes ChatGPT, Gemini, Claude, Perplexity, Copilot
-
-When you give Jarvis a task, it picks the optimal app automatically using scoring:
-
-```
-score = (trustScore × 0.4) + (capabilityMatch × 0.4) + (recency × 0.2)
-```
-
-Can chain multiple apps together for complex tasks:
-
-- **"Summarize this article and save to notes"**
-  → Chrome opens article → OCR extracts text → Gemini summarizes → Samsung Notes saves
-
-- **"Research iPhones and compare prices"**
-  → Perplexity searches → extracts results → reads response aloud
-
----
-
-### AI App Chaining
-
-The `ai_prompt` action delegates to installed AI apps:
-
-```json
-{"action":"ai_prompt","package":"com.openai.chatgpt","prompt":"summarize this","outputKey":"summary"}
-```
-
-Jarvis opens the app, types the prompt, waits for response stability (2 identical reads), extracts result into working memory.
-
----
-
-### Memory System (Graphify)
-
-Jarvis maintains a graph database with these node types:
-
-| Node | Stores |
+| Partie | Implémentation |
 |---|---|
-| AppNode | Package, label, use count, last used |
-| TaskNode | Command, result, provider, latency |
-| ContactNode | Name, phone, contact count, method |
-| PatternNode | Sequence hash, confidence, time masks |
-| ProviderNode | Name, model, success rate, latency |
-| EdgeEntity | Relationships between nodes |
+| Conversation | Texte, affichage progressif, historique chiffré borné, arrêt, journal des opérations. |
+| Profils IA | Claude, Mistral, OpenAI Chat Completions et Responses, Gemini, Ollama, OpenRouter, Groq, LM Studio, llama.cpp server et API compatibles. Modèles saisis ou découverts sur le serveur. |
+| Routage | Profils principal, rapide, puissant et privé ; liste de secours explicite. Aucun secours en mode Privé. Aucun changement de fournisseur ni répétition automatique après une opération exécutée. |
+| Voix | Reconnaissance Android installée ou API Voxtral/Whisper ; synthèse Android installée ou API Voxtral/OpenAI/Kokoro compatible. Profils STT et TTS indépendants. |
+| Synthèse système | Moteur Android `TextToSpeechService`, désactivé par défaut. Consentement explicite requis avant que le texte d'autres applications soit transmis au profil TTS choisi. |
+| Commandes Android | Ouverture d'applications et de réglages, alarmes/minuteurs via l'horloge, préparation d'un appel ou d'un SMS, cartes, volume et commandes multimédias. Confirmation avant chaque opération. |
+| Home Assistant | API REST, découverte des entités, liste d'entités/domaines autorisés, lecture d'état et services confirmés sur une seule cible. Acceptation de commande et état observé sont distincts. |
+| MCP | Client Streamable HTTP : initialisation, version, session, outils paginés, liste d'autorisations et confirmation de chaque appel. Aucun sampling, téléchargement ou exécution de code fournis par le serveur. |
+| Vision | Image choisie manuellement, confirmation avant envoi à un profil compatible. Aucune capture automatique d'écran. |
+| Embeddings | Profil et test de l'API compatibles OpenAI/Ollama. La récupération vectorielle de conversations n'est pas encore raccordée ; l'historique conversationnel utilise la mémoire chiffrée locale. |
 
-**Pattern Learning**: After 3 identical command sequences, Jarvis learns a pattern. Shows as suggestion chips based on time of day + history.
+Les fournisseurs distants et les modèles peuvent imposer leurs propres coûts, quotas et restrictions. Aucun compte ni abonnement n'est fourni avec l'APK. Une URL Ollama/LM Studio désigne votre serveur ; elle n'installe pas un modèle sur le téléphone.
 
-**Smart Suggestions**: 3 chips appear above input when idle, animated in with stagger:
+## Mise en route
 
-```
-┌─────────┐ ┌─────────┐ ┌─────────┐
-│call john│ │open wa  │ │search  │
-└─────────┘ └─────────┘ └─────────┘
-```
+1. Installer l'APK de développement validée, puis ouvrir **Open Jarvis**.
+2. Dans **Connexions → Ajouter un profil**, choisir le fournisseur, renseigner la clé et le modèle. Le bouton **Tester l'API** effectue un appel réel pouvant consommer du quota.
+3. Choisir le **Cerveau principal**. Les profils rapide, puissant et de secours sont facultatifs.
+4. Pour parler à Jarvis, créer un profil **Voxtral — transcription** ou utiliser un moteur Android déjà installé. Pour l'entendre, créer un profil **Voxtral — synthèse vocale**, charger ses voix prédéfinies et choisir un identifiant de voix. Affecter ces deux profils dans **Voix**.
+5. Utiliser **Tester le microphone** et **Tester la voix**. Les enregistrements restent en mémoire et sont transmis au fournisseur de transcription choisi ; ils ne sont pas conservés sur disque.
 
----
+Sans modèle IA configuré, des commandes déterministes restent disponibles, par exemple **« Ouvre les réglages Wi-Fi »**, **« Volume à 30 % »** et **« Minuteur de 5 minutes »**. Cela n'est pas une conversation avec un LLM local.
 
-## Quick Start
+### Fournir la voix aux autres applications
 
-### 1. Install
+Dans **Voix**, choisir un profil TTS distant puis activer **Proposer cette voix aux autres applications Android** et lire le consentement. Ouvrir les paramètres de synthèse vocale Android et sélectionner **Open Jarvis — voix choisie**. Seules les applications utilisant la synthèse vocale Android peuvent utiliser ce moteur ; une voix intégrée à une autre application n'est pas remplacée automatiquement.
 
-Download latest APK from GitHub Releases. Install → grant Accessibility Service → grant Overlay permission.
+Le moteur TTS système ne lit pas l'écran et ne démarre pas le microphone. Les textes fournis par les applications clientes sont transmis au fournisseur choisi uniquement tant que le consentement reste actif. La lecture peut être arrêtée et ce consentement révoqué. Le mode Android interne évite de sélectionner le moteur Jarvis lui-même pour ne pas créer de boucle.
 
-### 2. Add Your LLM
+### Assistant Android
 
-Open Settings → AI Provider → Pick: Groq (free, fast) / Gemini / OpenRouter / Custom URL → Paste API key → Done.
+L'activité expose `ACTION_ASSIST`. **Accès → Choisir l'assistant par défaut** ouvre la demande de rôle Android lorsque la ROM le permet. Le geste d'invocation dépend de la ROM. Le bouton flottant, la tuile de réglages rapides et le service d'interaction vocale permanente ne sont pas intégrés à cette édition.
 
-### 3. Give It a Command
+### Home Assistant et MCP
 
-Tap the floating Jarvis pill → type or speak your command.
+Créer un profil avec l'URL et le jeton requis. Dans **Outils**, découvrir les entités ou outils puis cocher uniquement ceux à autoriser. Une liste vide n'autorise rien. Pour Home Assistant, un nom exact tel que `light.salon` est préférable à un domaine entier. Une demande de déverrouillage, de scène ou de script reste soumise à une confirmation de ses paramètres exacts.
 
-Examples:
-- "Open WhatsApp and text John I'm on my way"
-- "Search for flights to Dubai next week"
-- "Open Gemini and ask it to write me a poem"
-- "Set an alarm for 7am"
-- "Take a screenshot and save it to notes"
+Les flux OAuth spécifiques à un serveur MCP ne sont pas implémentés ; configurer un jeton autorisé et, si nécessaire, des en-têtes dans le profil. Les cookies de navigateur et les jetons privés Codex/ChatGPT ne sont pas extraits ou réutilisés.
 
-### 4. Termux CLI (optional)
+## Limites à connaître
 
-```bash
-cp scripts/jarvis.sh $PREFIX/bin/jarvis && chmod +x $PREFIX/bin/jarvis
-jarvis "open youtube"
-jarvis status
-jarvis history
-```
+Cette édition ne clique pas arbitrairement dans les interfaces des autres applications et ne lit pas leurs écrans ou notifications. Un SMS est **préparé**, pas envoyé automatiquement ; un appel est **préparé**, pas déclenché automatiquement. Les protections Android, les écrans verrouillés et les autorisations système ne sont pas contournés.
 
----
+Le microphone exige un appui utilisateur et une application visible. Parler interrompt la voix en cours. Il n'y a pas de mot de réveil, d'écoute permanente ni de transcription système pour toutes les autres applications.
 
-## Choosing Your LLM
+Les fonctions amont non raccordées ne sont pas présentées comme disponibles dans l'interface : chargement natif GGUF, surveillance d'écran, bridge Termux, notifications intelligentes, automatisations autonomes et génération d'applications. Les anciens services non enregistrés sont conservés à titre de référence dans `app/src/legacyReference/` ; ils ne reçoivent pas d'autorisations d'arrière-plan inutiles.
 
-| Use Case | Model | Provider | Notes |
-|---|---|---|---|
-| Daily device control | llama3-8b-8192 | Groq | Free, sub-second |
-| Complex reasoning | claude-haiku-4-5-20251001 | Anthropic | Best accuracy |
-| Code / App building | claude-sonnet-4-6 | Anthropic | Top quality |
-| Privacy first | Phi-3 Mini Q4 | Local (M6) | Zero cloud |
-| Free + capable | gemini-1.5-flash | Google | Generous free tier |
-| Self hosted | any GGUF | Ollama / Custom | Full control |
-| No API key | llama-3-8b:free | OpenRouter | Works immediately |
-| Offline budget | Gemma-2 2B Q5 | Local (M6) | 1.8GB, fast |
+## Confidentialité et sécurité
 
----
+Clés, en-têtes, profils et historique sont stockés avec Android Keystore et des préférences chiffrées. Aucune solution de repli en texte clair n'est utilisée si ce stockage échoue. Les sauvegardes Android de l'application sont désactivées. L'export des profils retire les secrets et les en-têtes personnalisés.
 
-## Supported LLM Providers
+Le transport réseau ne journalise pas les corps ou identifiants et ne suit pas les redirections. HTTPS vérifie les certificats. HTTP nécessite une autorisation explicite par profil et reste limité aux adresses locales privées ou de boucle locale ; cette option ne rend pas une connexion Internet non chiffrée acceptable.
 
-- **Groq** — Ultra-fast inference, llama/flux models
-- **Google Gemini** — gemini-1.5-flash
-- **Anthropic Claude** — claude-haiku, claude-sonnet, claude-opus
-- **OpenAI** — gpt-4o, gpt-4o-mini
-- **OpenRouter** — Aggregator, 100+ models including free tiers
-- **Ollama** — Local server (localhost:11434)
-- **LM Studio** — Local GGUF models
-- **Custom** — Any OpenAI-compatible API
+Les confirmations expirent en refus. Une réponse réseau incomplète n'exécute pas d'appel d'outil partiel. Les résultats des outils sont considérés comme des données non fiables. Le code ne considère pas une simple demande acceptée par un serveur comme la preuve d'un résultat physique.
 
-All keys stored in EncryptedSharedPreferences.
+## Compilation et vérification
 
----
+Java 17, Gradle 8.2.1 et Android SDK 34 / Build Tools 34.0.0 sont utilisés. La définition de référence est `.github/workflows/android.yml`.
 
-## App Intelligence
-
-Jarvis indexes every app on your device:
-
-- Learns what each app is good at (capabilities)
-- Tracks which apps you use most (trust score)
-- Automatically selects the best app for each task
-- Chains multiple apps together for complex tasks
-- Detects AI apps and knows how to prompt them
-
-**Detected AI apps**: ChatGPT, Gemini, Claude, Perplexity, Copilot, Mistral, Character AI, Kakao i
-
-**Trust Score Updates**:
-- Success: +0.02 (caps at 1.0)
-- Failure: -0.05 (floors at 0.1)
-
----
-
-## Graphify Memory
-
-Jarvis remembers:
-
-- **Every task** you've run and its outcome
-- **Which apps** you open and when
-- **People** you mention and which app you contact them through
-- **Patterns** in your behavior (opens WhatsApp every morning)
-- **Which LLM** provider gave the best results
-
-Memory improves suggestions. After a week of use, Jarvis starts predicting what you need before you ask.
-
----
-
-## CLI Reference (Termux)
-
-```bash
-jarvis "command"         # run any command
-jarvis status          # service status + current provider
-jarvis history         # last 10 tasks
-jarvis providers       # provider stats + success rates
-jarvis memory         # current memory context summary
-jarvis --help         # full usage
+```sh
+gradle --no-daemon --console=plain --stacktrace \
+  :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest
 ```
 
-See docs/BRIDGE.md for full protocol documentation.
+Les tests locaux utilisent des serveurs simulés, jamais de clés payantes. Les tests instrumentés s'exécutent sur une image AOSP sans Google Play Services et vérifient l'interface, le stockage chiffré, les confirmations et le moteur TTS système. Seul le rapport d'une exécution terminée avec succès prouve leur réussite.
 
----
+Les APK de développement sont signées avec une clé de débogage, pas avec une clé de publication personnelle. Une recompilation sur une autre machine peut changer de certificat : ne pas compter sur une mise à jour en place sans stratégie de signature stable. Ne pas publier de clé de signature dans le dépôt.
 
-## Project Structure
-
-```
-open-jarvis/
-├── app/src/main/java/com/openjarvis/
-│   ├── agent/
-│   │   ├── AgentCore.kt        # Main execution engine
-│   │   ├── ActionPlan.kt     # Action types + parser
-│   │   └── ActionExecutor.kt # Tap/type/scroll execution
-│   ├── accessibility/
-│   │   ├── JarvisAccessibilityService.kt
-│   │   ├── ScreenReader.kt
-│   │   └── ActionExecutor.kt
-│   ├── bridge/
-│   │   └── SocketServer.kt  # TCP socket for CLI
-│   ├── graphify/
-│   │   ├── GraphifyDB.kt     # Room database
-│   │   ├── GraphifyRepository.kt
-│   │   ├── AnalysisEngine.kt
-│   │   └── nodes/           # All node types
-│   ├── intelligence/
-│   │   ├── AppAnalyzer.kt   # App indexing
-│   │   ├── TaskRouter.kt   # App selection
-│   │   ├── AIAppInteractor.kt
-│   │   └── ExecutionPlan.kt
-│   ├── llm/
-│   │   ├── LLMProvider.kt  # Interface
-│   │   ├── UniversalAdapter.kt
-│   │   ├── HttpClient.kt
-│   │   └── providers/       # All 8 providers
-│   ├── voice/
-│   │   ├── VoiceManager.kt
-│   │   ├── STTEngine.kt    # Interface
-│   │   ├── AndroidSTTEngine.kt
-│   │   └── AndroidTTSEngine.kt
-│   ├── vision/
-│   │   ├── ScreenshotCapture.kt
-│   │   └── VisionModule.kt  # MLKit OCR
-│   └── ui/
-│       ├── MainActivity.kt
-│       ├── OverlayService.kt
-│       ├── SettingsActivity.kt
-│       ├── overlay/FloatingOverlayWidget.kt
-│       ├── dashboard/DashboardScreen.kt
-│       └── settings/SettingsScreen.kt
-├── scripts/
-│   └── jarvis.sh          # Termux CLI client
-├── docs/
-│   ├── BRIDGE.md
-│   ├── GRAPHIFY.md
-│   ├── MILESTONES.md
-│   └── PROVIDERS.md
-└── README.md
-```
-
----
-
-## Architecture
-
-```
-┌───────────────────────────────────────────────────────────────��─��
-│                        UI LAYER                            │
-│  FloatingOverlayWidget │ Dashboard │ Settings │ OverlayService │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      AGENT CORE                                │
-│           executeTask() → Task Router → LLM Brain              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   GRAPHIFY  │    │  APP      │    │   LLM      │
-│   MEMORY   │    │ INTELLIGENCE│    │ PROVIDERS  │
-│            │    │           │    │           │
-│ - TaskNode │    │ - AppAnalyzer│  │ - Groq    │
-│ - AppNode │    │ - TaskRouter│   │ - Gemini  │
-│ - Contact │    │ - AIApp   │    │ - Claude  │
-│ - Pattern│    │   Interact │  │ - OpenAI  │
-│ - Edge   │    │ - TrustSc │    │ - Ollama  │
-└──────────────┘    └──────────────┘    └──────────────┘
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   ROOM     │    │ ACCESSIBILI│    │   HTTP    │
-│  DATABASE  │    │ TY SVC   │    │  CLIENT   │
-└──────────────┘    └──────────────┘    └──────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   ACCESSIBILITY SERVICE                         │
-│    Tap │ Type │ Scroll │ Screenshot │ Voice Pipeline (STT + TTS)    │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Milestones
-
-| Milestone | Goal | Status | Description |
-|---|---|---|---|
-| M1 | Accessibility Service + App Launcher | ✅ Complete | Foundation, basic overlay |
-| M1.5 | Premium VOID UI | ✅ Complete | Compose animations, theme |
-| M2 | Screenshot + OCR + LLM | ✅ Complete | Vision + 8 providers |
-| M3 | Voice Input (STT + TTS | ✅ Complete | Push-to-talk, VAD |
-| M4 | Graphify Memory | ✅ Complete | Pattern learning |
-| M5 | Termux CLI Bridge | ✅ Complete | TCP socket + jarvis.sh |
-| M6-AI | App Intelligence | ✅ Complete | Auto app selection |
-| M6 | Local Model Support | ✅ Complete | llama.cpp bridge |
-| M6.5 | Skills System | ✅ Complete | Skill files |
-| M6.5 | MCP Server | ✅ Complete | Model Context Protocol |
-| M7 | App Builder Mode | ✅ Complete | No-code agent creation |
-| M8 | Optimization + Release | ✅ Complete | Public launch |
-
----
-
-## Contributing
-
-Contributions welcome! Please read [docs/PROVIDERS.md](docs/PROVIDERS.md) for adding new LLM providers. See [docs/BRIDGE.md](docs/BRIDGE.md) for CLI documentation.
-
-Skills system coming in M6.5 — contribute skill files.
-
-**To add a new LLM provider:**
-1. Implement `LLMProvider` interface in `llm/`
-2. Add to `UniversalAdapter.AVAILABLE_PROVIDERS`
-3. Add model defaults in `UniversalAdapter.getDefaultModel()`
-
----
-
-## Performance
-
-| Mode | RAM Usage | Response Time |
-|---|---|---|
-| Cloud LLM (idle) | ~60MB | — |
-| Cloud LLM (active) | ~180MB | 1-3 seconds |
-| Voice active | ~320MB | 2-4 seconds |
-| Local model loaded | ~2.1GB | 5-10 seconds |
-
-Tested on: Android 8.0+, 4GB RAM minimum recommended
-
----
-
-## FAQ
-
-**Does it need root?**
-No. Open Jarvis uses Android Accessibility Service which requires no root access.
-
-**Does it work offline?**
-Yes. Download a local model (Phi-3 Mini or Gemma-2) in Settings. Voice also works offline. Zero cloud dependency.
-
-**Is my data private?**
-All data stays on your device. Graphify memory is local SQLite. API keys stored in Android EncryptedSharedPreferences. Network calls only go to your configured LLM provider.
-
-**Which LLM should I use?**
-Start with Groq — it's free, fast, and works great for device control tasks.
-
-**Can it control any app?**
-Any app that supports Android Accessibility Service — which is virtually all apps. Some games with custom rendering may have limited element detection.
-
-**Can I use it without any API key?**
-Yes — download a local model in Settings → Local Model. Phi-3 Mini (2.2GB) works on 4GB RAM devices.
-
-**How do I add Jarvis to Termux?**
-`cp scripts/jarvis.sh ~/bin/jarvis && chmod +x ~/bin/jarvis` Then: `jarvis "your command here"`
-
-**What is Tutorial Mode?**
-Say "show me how to..." and Jarvis guides you through the task step by step, highlighting each element before tapping it.
-
-**Can Jarvis build apps?**
-Yes — say "build me a [type] app" and Jarvis generates a complete Android project. Connect Termux with Gradle for auto-building APK.
-
----
-
-## Built By
-
-tokenarc — built entirely on Android using Termux.
-
-GitHub: https://github.com/tokenarc/open-jarvis
-
----
-
-## License
-
-MIT
+Le fichier `ci-results/build-info.txt`, l'empreinte SHA-256 et les rapports accompagnent chaque APK validée. Un essai sur émulateur ne remplace pas un essai matériel sur Fairphone/Murena ni une connexion à vos services réels.

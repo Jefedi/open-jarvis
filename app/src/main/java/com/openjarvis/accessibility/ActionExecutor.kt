@@ -1,111 +1,55 @@
 package com.openjarvis.accessibility
 
 import com.openjarvis.agent.Action
-import com.openjarvis.agent.ActionPlan
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.util.concurrent.CopyOnWriteArrayList
 
 class ActionExecutor(private val service: JarvisAccessibilityService) {
-
-    private val screenReader = ScreenReader(service)
-
     suspend fun execute(actions: List<Action>): ExecutionResult = withContext(Dispatchers.IO) {
-        val results = CopyOnWriteArrayList<ActionResult>()
-        
+        val results = mutableListOf<ActionResult>()
         for (action in actions) {
-            val stepResult = executeStep(action)
-            results.add(stepResult)
-            
-            if (!stepResult.success) {
-                return@withContext ExecutionResult(
-                    partialResults = results.toList(),
-                    success = false,
-                    errorMessage = stepResult.errorMessage
-                )
-            }
-            
+            val result = executeStep(action)
+            results.add(result)
+            if (!result.success) return@withContext ExecutionResult(results.toList(), false, result.errorMessage)
             delay(500)
         }
-        
-        ExecutionResult(
-            partialResults = results.toList(),
-            success = true,
-            errorMessage = null
-        )
+        ExecutionResult(results.toList(), true, null)
     }
 
-    private suspend fun executeStep(action: Action): ActionResult {
-        return when (action.action) {
-            Action.OPEN_APP -> {
-                val packageName = action.packageName
-                val label = action.label
-                
-                if (packageName != null) {
+    private fun executeStep(action: Action): ActionResult = when (action.action) {
+        Action.OPEN_APP -> {
+            val packageName = action.packageName
+            val label = action.label
+            if (packageName != null) {
+                if (service.packageManager.getLaunchIntentForPackage(packageName) == null) {
+                    ActionResult(action, false, "App not found: $packageName")
+                } else {
                     service.openAppByPackage(packageName)
                     ActionResult(action, true, null)
-                } else if (label != null) {
-                    val success = service.openAppByLabel(label)
-                    ActionResult(action, success, if (!success) "App not found: $label" else null)
-                } else {
-                    ActionResult(action, false, "No package or label provided")
                 }
-            }
-            
-            Action.TAP -> {
-                val text = action.text
-                if (text != null) {
-                    val success = service.tapByText(text)
-                    ActionResult(action, success, if (!success) "Could not tap: $text" else null)
-                } else {
-                    ActionResult(action, false, "No text provided for tap")
-                }
-            }
-            
-            Action.TYPE -> {
-                val value = action.value
-                if (value != null) {
-                    val success = service.typeText(value)
-                    ActionResult(action, success, if (!success) "Could not type: $value" else null)
-                } else {
-                    ActionResult(action, false, "No value provided for type")
-                }
-            }
-            
-            Action.PRESS_BACK -> {
-                service.pressBack()
-                ActionResult(action, true, null)
-            }
-            
-            Action.PRESS_HOME -> {
-                service.pressHome()
-                ActionResult(action, true, null)
-            }
-            
-            Action.PRESS_RECENTS -> {
-                service.pressRecents()
-                ActionResult(action, true, null)
-            }
-            
-            else -> {
-                ActionResult(action, false, "Unsupported action: ${action.action}")
-            }
+            } else if (label != null) {
+                val success = service.openAppByLabel(label)
+                ActionResult(action, success, if (success) null else "App not found: $label")
+            } else ActionResult(action, false, "No package or label provided")
         }
+        Action.TAP -> {
+            val success = action.text?.let { service.tapByText(it) } ?: false
+            ActionResult(action, success, if (success) null else "Tap failed")
+        }
+        Action.TYPE -> {
+            val success = action.value?.let { service.typeText(it) } ?: false
+            ActionResult(action, success, if (success) null else "Text input failed")
+        }
+        Action.PRESS_BACK -> globalResult(action, service.pressBack())
+        Action.PRESS_HOME -> globalResult(action, service.pressHome())
+        Action.PRESS_RECENTS -> globalResult(action, service.pressRecents())
+        else -> ActionResult(action, false, "Unsupported action: ${action.action}")
     }
 
-    data class ActionResult(
-        val action: Action,
-        val success: Boolean,
-        val errorMessage: String?
-    )
+    private fun globalResult(action: Action, success: Boolean) =
+        ActionResult(action, success, if (success) null else "Global action failed")
 
-    data class ExecutionResult(
-        val partialResults: List<ActionResult>,
-        val success: Boolean,
-        val errorMessage: String?
-    )
-}
-
-private object Dispatchers {
-    val IO = kotlinx.coroutines.Dispatchers.IO
+    data class ActionResult(val action: Action, val success: Boolean, val errorMessage: String?)
+    data class ExecutionResult(val partialResults: List<ActionResult>, val success: Boolean, val errorMessage: String?)
 }

@@ -2,13 +2,19 @@ package com.openjarvis.graphify
 
 import org.junit.Test
 import org.junit.Assert.*
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [28])
 class AnalysisEngineTest {
+    @org.junit.Before fun clearDatabase() = kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+        GraphifyDB.getInstance(testContext()).clearAllTables()
+    }
+
 
     @Test
-    fun `3 identical sequences should create PatternNode with confidence > 0`() = runTest(Dispatchers.IO) {
+    fun `3 identical sequences should create PatternNode with positive confidence`() = runBlocking(Dispatchers.IO) {
         val context = testContext()
         val engine = AnalysisEngine(context)
         val repo = GraphifyRepository(context)
@@ -32,7 +38,7 @@ class AnalysisEngineTest {
     }
 
     @Test
-    fun `confidence decays after 7 days stale`() = runTest(Dispatchers.IO) {
+    fun `confidence decays after 7 days stale`() = runBlocking(Dispatchers.IO) {
         val context = testContext()
         val engine = AnalysisEngine(context)
         val repo = GraphifyRepository(context)
@@ -54,14 +60,14 @@ class AnalysisEngineTest {
         engine.decayAllPatterns()
 
         val patterns = repo.getActivePatterns(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000, 0.1f)
-        val decayedPattern = patterns.find { it.sequenceHash == "abc123" }
+        val decayedPattern = repo.getPatternByHash("abc123")
         
         assertNotNull("Pattern should still exist after decay", decayedPattern)
         assertTrue("Confidence should decay after 7 days", decayedPattern!!.confidence < 0.9f)
     }
 
     @Test
-    fun `contact fuzzy match within distance 2`() = runTest(Dispatchers.IO) {
+    fun `contact fuzzy match within distance 2`() = runBlocking(Dispatchers.IO) {
         val context = testContext()
         val repo = GraphifyRepository(context)
 
@@ -85,6 +91,6 @@ class AnalysisEngineTest {
     }
 
     private fun testContext(): android.content.Context {
-        return androidx.compose.ui.platform.LocalContext.current.applicationContext
+        return androidx.test.core.app.ApplicationProvider.getApplicationContext()
     }
 }
