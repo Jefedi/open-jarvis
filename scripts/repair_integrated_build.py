@@ -4,7 +4,7 @@ root = Path(__file__).resolve().parents[1]
 def replace(path, old, new):
     p = root / path
     value = p.read_text()
-    if old in value: p.write_text(value.replace(old, new))
+    if old in value and new not in value: p.write_text(value.replace(old, new))
 base = 'app/src/main/java/com/openjarvis/'
 replace(base + 'accessibility/JarvisAccessibilityService.kt', 'AccessibilityEvent.TYPE_ALL_MASK', 'AccessibilityEvent.TYPES_ALL_MASK')
 replace(base + 'murena/AudioController.kt', 'recorder.read(buffer, 0, buffer.size())', 'recorder.read(buffer, 0, buffer.size)')
@@ -36,7 +36,6 @@ replace(base + 'murena/AudioController.kt', '''        inputJob = scope.launch {
 replace(base + 'murena/SystemVoiceEngine.kt', '''    override fun onGetLanguage(): Array<String> = arrayOf("fra", "FRA", "")''', '''    override fun onGetFeaturesForLanguage(lang: String, country: String, variant: String): MutableSet<String> =
         mutableSetOf(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)
     override fun onGetLanguage(): Array<String> = arrayOf("fra", "FRA", "")''')
-# The insertion above must not duplicate an override on subsequent runs.
 p = root / (base + 'murena/SystemVoiceEngine.kt')
 s = p.read_text()
 feature = '    override fun onGetFeaturesForLanguage(lang: String, country: String, variant: String): MutableSet<String> =\n        mutableSetOf(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)\n'
@@ -50,7 +49,13 @@ p.write_text(s)
 replace('app/src/test/java/com/openjarvis/graphify/AnalysisEngineTest.kt', 'confidence > 0`()', 'positive confidence`()')
 replace('app/src/test/java/com/openjarvis/graphify/AnalysisEngineTest.kt', 'import kotlinx.coroutines.test.runTest', 'import kotlinx.coroutines.runBlocking')
 replace('app/src/test/java/com/openjarvis/graphify/AnalysisEngineTest.kt', 'runTest(Dispatchers.IO)', 'runBlocking(Dispatchers.IO)')
-# Gemini v1beta accepts full JSON Schema through parametersJsonSchema, not OpenAPI parameters.
+# v1beta accepts JSON Schema here; the OpenAPI parameters field rejects additionalProperties.
 replace(base + 'murena/LlmBackends.kt', 'JSONArray(tools.map(::function))', 'JSONArray(tools.map { JSONObject().put("name", it.name).put("description", it.description).put("parametersJsonSchema", it.parameters) })')
 replace(base + 'murena/LlmBackends.kt', '.put("response", JSONObject().put("result", m.text))))', '.put("response", JSONObject().put("result", m.text)).apply { if (m.toolId.isNotBlank()) put("id", m.toolId) }))')
+replace(base + 'murena/LlmBackends.kt', '.apply { if (m.toolId.isNotBlank()) put("id", m.toolId) }', '.apply { if (messages.any { previous -> previous.protocol == "gemini" && previous.raw?.objects()?.any { part -> part.optJSONObject("functionCall")?.nullableString("id") == m.toolId } == true }) put("id", m.toolId) }')
+p = root / (base + 'murena/AudioController.kt')
+s = p.read_text()
+declaration = '        val previousSpeech = outputJob\n'
+while declaration + declaration in s: s = s.replace(declaration + declaration, declaration)
+p.write_text(s)
 print('Integrated compiler and test-source fixes applied if needed.')
