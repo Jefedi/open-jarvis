@@ -22,6 +22,14 @@
             <intent-filter><action android:name="android.intent.action.ASSIST" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
         </activity>
         <activity android:name=".ui.SettingsActivity" android:exported="false" android:parentActivityName=".ui.MainActivity" />
+        <activity android:name=".murena.VoiceDataActivity" android:exported="true" android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.speech.tts.engine.CHECK_TTS_DATA" />
+                <action android:name="android.speech.tts.engine.GET_SAMPLE_TEXT" />
+                <action android:name="android.speech.tts.engine.INSTALL_TTS_DATA" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <service android:name=".murena.JarvisSystemTtsService" android:exported="true" android:label="Open Jarvis — voix choisie">
             <intent-filter><action android:name="android.intent.action.TTS_SERVICE" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
             <meta-data android:name="android.speech.tts" android:resource="@xml/murena_tts_engine" />
