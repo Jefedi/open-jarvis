@@ -1,60 +1,87 @@
-# Open Jarvis pour Murena — état réel du développement
+# Open Jarvis Murena — résultat vérifié de la livraison
 
-Date du point de contrôle : 5 septembre 2026.
+Date : **5 septembre 2026**.
 Dépôt : `Jefedi/open-jarvis`, fork de `tokenarc/open-jarvis`.
-Branche de travail : `murena/build-foundation`. La branche `main` n'est pas modifiée.
+Branche : `murena/build-foundation`. La branche `main` n'est pas fusionnée.
 
-> Travail préparatoire en cours. Cette branche n'est pas une application complète, validée ou prête à installer. Les mentions « Complete » du README amont ne constituent pas une preuve de fonctionnement.
+## APK réellement produite et vérifiée
 
-## Modifications réellement enregistrées
+- Version : `0.2.0-murena-preview`, versionCode `2`.
+- Application : `com.openjarvis` ; activité `.ui.MainActivity`.
+- Variante : **debug**, avec certificat de développement, pas une signature de publication personnelle stable.
+- Taille : **61 352 359 octets**.
+- Commit compilé et testé : **`3f3752a63213926988b58b7bedb5b305636c3677`**.
+- Exécution GitHub Actions : **[33989156889 — terminée avec succès](https://github.com/Jefedi/open-jarvis/actions/runs/33989156889)**.
+- Artefact APK : `9976140116`, `open-jarvis-debug-3f3752a63213926988b58b7bedb5b305636c3677`.
+- Artefact de diagnostics : `9976140872`, `diagnostics-3f3752a63213926988b58b7bedb5b305636c3677`.
 
-La chaîne GitHub Actions utilise Java 17, Gradle 8.2.1, Android SDK 34 et les dépendances déclarées par le projet. Elle lance `:app:assembleDebug`, `:app:testDebugUnitTest` et `:app:lintDebug`, sans clé API ni appel payant dans les tests ajoutés. Les actions sont référencées par leurs SHA. Les diagnostics et une archive des sources exactes sont conservés même lorsque la compilation échoue. Une APK ne doit être publiée par ce workflow qu'après réussite des tâches et vérification de sa signature.
+SHA-256 de l'APK livrée :
 
-Le client HTTP partagé ne journalise plus les requêtes, réponses, en-têtes ou clés API, même en mode debug. Un délai maximal par appel a été ajouté. Trois tests de non-régression utilisent un serveur HTTP local fictif. Cette correction n'est pas un audit de tous les transports de l'application.
-
-Les dépendances Compose Activity et Material Components manquantes ont été ajoutées. Le thème Compose référencé par les écrans mais absent des sources a été créé. L'écran principal actualise les autorisations au retour des réglages Android ; les fournisseurs peuvent être configurés sans activer au préalable le contrôle du téléphone.
-
-Les types d'état incohérents dans le gestionnaire local ont été corrigés. Les paramètres de fournisseur chargés depuis les préférences ne sont plus transmis comme chaînes nullables à des constructeurs non nullables. Le fournisseur personnalisé existant est visible dans la liste.
-
-La persistance des automatisations utilise maintenant une conversion explicite entre l'entité Room et les horaires métier. Deux tests vérifient l'aller-retour des horaires et le rejet d'un type inconnu. Les requêtes périodiques et ponctuelles WorkManager sont distinctes ; les intervalles inférieurs à quinze minutes sont rejetés. Le worker amont annonçait un succès après une simple attente, sans exécuter la commande : il signale maintenant « Non exécuté » tant que le moteur n'est pas raccordé.
-
-Les erreurs de syntaxe du client MCP ont été corrigées, ainsi que la lecture de certains résultats JSON. Ce transport reste un client JSON ancien : ni conformité MCP moderne, ni authentification complète, ni compatibilité Home Assistant ne sont validées.
-
-Le moteur d'agent a été remis en forme pour corriger ses accolades, son étiquette de retour et un nom d'argument erroné. Les actions non implémentées sont refusées au lieu d'être ignorées puis annoncées comme réussies. Le constructeur du lecteur d'écran a été corrigé ; les nœuds trouvés ne sont plus recyclés avant leur remise à l'appelant.
-
-## Essais effectués et preuves
-
-1. Essai `33983346143` : échec d'installation du SDK (`sdkmanager` absent du PATH). Point corrigé dans le workflow suivant.
-2. Essai `33983533093`, commit `7b05267c897edd379c4b9be155e700d82af6b635` : le SDK et Gradle fonctionnent ; échec à `kspDebugKotlin`, avec erreurs Room et erreurs de syntaxe Kotlin. Les diagnostics ont été téléchargés et inspectés.
-3. Essai `33984034398`, commit `44e3d75c1f584894e21792f25c1755b04635f789` : `kspDebugKotlin` passe. `compileDebugKotlin` échoue ensuite avec 81 lignes de diagnostic. Il s'agit de diagnostics, pas nécessairement de 81 défauts indépendants. L'ambiguïté de constructeur ScreenReader et l'import ActionPlan inexistant ont été corrigés après cet essai. Les autres diagnostics restent à traiter.
-
-Les cinq tests ajoutés n'ont pas encore été exécutés : la compilation du code applicatif bloque leur lancement. Aucun essai sur Fairphone, Murena ou émulateur n'a été effectué. Aucune APK réussie ou validée n'est annoncée.
-
-Les exécutions et leurs archives sont consultables dans l'onglet Actions du dépôt. Pour chaque résultat, vérifier le SHA exact : un test sur un ancien commit ne valide pas les modifications suivantes.
-
-## Blocages connus
-
-- Le manifeste désigne `.MainActivity`, alors que la classe est `.ui.MainActivity`. La tentative de modification de ce manifeste a été refusée par l'outil de cette session ; le manifeste est resté inchangé. Aucun contournement n'a été appliqué.
-- La compilation Kotlin signale encore des méthodes inexistantes, des objets compagnons dupliqués, deux définitions de GeminiProvider, des imports Compose manquants et des usages incorrects d'API Android. Les groupes concernés incluent voix, vision, interface, notifications, pont Termux, moteur de secours, compétences et générateur d'applications.
-- Le chargement local ne fait actuellement que changer des états dans ModelManager : cela ne prouve pas qu'un moteur natif charge et exécute le modèle. La reprise des téléchargements nécessite également une correction.
-- Le service d'overlay examiné n'attache pas encore son widget à une fenêtre. Plusieurs écrans de configuration contiennent des états locaux non raccordés aux composants correspondants.
-- Les confirmations sensibles doivent être imposées par du code avant toute action, sans acceptation automatique à l'expiration d'un délai. Une consigne dans le prompt du modèle ne constitue pas ce contrôle. Ne pas utiliser cette branche sur des applications bancaires ou pour des actions irréversibles.
-
-## Objectif fonctionnel restant à développer
-
-Le cahier des charges reste celui d'un assistant complet pour Murena, pas seulement d'un chatbot. Il exige des fournisseurs indépendants pour le raisonnement, la transcription, la synthèse vocale, la vision et les outils ; des profils multiples ; des paramètres persistants et des erreurs compréhensibles.
-
-Les intégrations prioritaires sont Claude, Mistral, OpenAI, les API compatibles, Ollama et les fournisseurs existants, avec streaming et appels d'outils lorsqu'ils sont pris en charge. Toute connexion OpenAI par abonnement doit s'appuyer sur une méthode officielle autorisée ; ne pas extraire ou réutiliser des cookies ni des jetons privés Codex.
-
-Voxtral pour la transcription et la synthèse vocale, la voix système Android, le rôle d'assistant par défaut, les accès rapides, Home Assistant et un client MCP conforme restent à développer et à tester. Les cinq tests ajoutés ne valident aucune de ces intégrations.
-
-## Reproduction de la compilation
-
-La procédure effectivement utilisée se trouve dans `../.github/workflows/android.yml`. Le dépôt n'a pas encore de Gradle Wrapper versionné. Dans un environnement disposant de Java 17, Gradle 8.2.1 et du SDK Android 34 :
-
-```sh
-gradle --no-daemon --console=plain --stacktrace --continue \
-  :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+```text
+791adc0b6b0ea4964ad602120e2f63ab9b3dfaa060788e448a6c7c43644c0ce8
 ```
 
-Conserver les journaux, les rapports de tests et le SHA des sources. Ne pas fusionner en tant que version prête à installer avant une compilation réussie, la correction du lancement, les tests de sécurité et les essais de fonctionnement réels.
+L'APK et les diagnostics ont été téléchargés. Les octets de l'APK correspondent à l'empreinte de l'intégration continue. Le vérificateur de livraison a contrôlé la cohérence du commit, l'intégrité ZIP, les rapports JUnit, le rapport Lint, la signature, le premier lancement et le rôle d'assistant. Cette mise à jour de documentation est postérieure au commit testé ; elle ne remplace pas le SHA de référence ci-dessus.
+
+## Résultats des contrôles
+
+| Contrôle | Résultat |
+|---|---|
+| Compilation APK et APK de tests | Réussie |
+| Tests locaux/JVM | **48/48**, zéro échec, erreur ou test ignoré |
+| Tests instrumentés sur AOSP Android 14 / API 34 / x86_64 | **6/6**, zéro échec, erreur ou test ignoré |
+| Analyse Android Lint | **0 erreur bloquante, 87 avertissements** |
+| Installation indépendante après nettoyage du lanceur de tests | Réussie |
+| Premier lancement sans données ni profil | Réussi, `Status: ok`, activité réellement démarrée |
+| Attribution du rôle `android.app.role.ASSISTANT` sur l'émulateur | Réussie pour `com.openjarvis` |
+| Signature | Vérifiée par `apksigner`, schéma APK v2 |
+| Comparaison SHA-256 des octets livrés | Réussie |
+| Essai matériel Fairphone / Murena | **Non effectué** |
+| Connexion avec les vrais comptes IA ou services personnels de l'utilisateur | **Non effectuée** |
+
+Les six parcours Android vérifient : l'interface française sans Google Play Services et les activités TTS déclarées ; la création d'un profil par l'interface et sa conservation chiffrée après recréation d'activité ; une conversation HTTP avec un serveur simulé ; l'absence de changement de volume avant confirmation et après refus, puis le changement après autorisation ; le mode privé sans secours cloud ; la synthèse d'un fichier WAV par le véritable moteur TTS Android avec une réponse réseau simulée.
+
+Les tests locaux portent notamment sur les adaptateurs de protocoles, les flux et appels d'outils, les confirmations, les délais, les refus, la protection des identifiants, les permissions Home Assistant/MCP, les réponses audio PCM/WAV et les limites des connexions HTTP locales. Aucun test n'utilise de clé payante réelle. Les règles Lint et les tests n'ont pas été désactivés pour publier l'APK.
+
+## Fonctionnalités raccordées
+
+L'interface française propose cinq onglets : Assistant, Connexions, Voix, Outils et Accès. Les profils, clés, en-têtes, paramètres et conversations sont chiffrés avec Android Keystore. L'export retire les secrets. L'historique est borné et effaçable.
+
+Les adaptateurs LLM implémentés incluent Claude natif, Mistral, OpenAI Chat Completions et Responses, Gemini, Ollama, OpenRouter, Groq, LM Studio, llama.cpp server et les API compatibles. Les profils principal, rapide, puissant et privé sont indépendants. La liste des fournisseurs de secours est explicite ; le mode privé n'utilise aucun secours. Aucun fournisseur n'est substitué automatiquement après l'exécution d'un outil.
+
+La transcription et la synthèse sont configurées séparément : moteur Android installé, Voxtral, Whisper compatible et TTS compatible OpenAI/Kokoro. La génération vocale Voxtral non progressive décode sa réponse JSON contenant des données audio ; le flux progressif convertit le PCM float32 en PCM16. Le microphone est activé par un bouton dans l'application visible. Aucun enregistrement n'est sauvegardé sur disque par ce nouveau moteur.
+
+Un véritable `TextToSpeechService` permet aux applications utilisant le TTS Android de demander la voix du profil choisi. Il reste désactivé tant que l'utilisateur n'a pas accepté le traitement des textes par ce fournisseur. Les activités de vérification, exemple et configuration de voix sont déclarées pour les réglages Android. La voix interne Android évite le moteur Jarvis lui-même pour prévenir une boucle.
+
+Les commandes Android utilisent des interfaces publiques : ouverture d'applications ou de panneaux de réglages, alarmes et minuteurs via l'horloge, préparation d'un numéro ou d'un SMS, destination dans les cartes, réglage du volume et commandes multimédias. Chaque opération exige une confirmation. Un appel ou un message préparé n'est pas annoncé comme envoyé.
+
+Home Assistant utilise l'API REST avec autorisation d'entités ou de domaines et confirmation de chaque service. L'acceptation de la demande et l'état observé sont distincts. MCP utilise Streamable HTTP avec initialisation, versions négociées, session, pagination et liste d'outils explicitement autorisés. La vision porte sur une image choisie manuellement puis confirmée avant envoi. L'API d'embeddings est configurable et testable, mais la recherche vectorielle dans les conversations n'est pas raccordée.
+
+## Limites à ne pas masquer
+
+Cette livraison est une **version de développement utilisable**, pas l'intégralité du cahier des charges de contrôle total du téléphone.
+
+Le contrôle générique des interfaces par accessibilité et le module groupé overlay/interaction vocale ont été refusés par l'outil pendant le développement. Ils ne sont pas présents sous une autre forme dans l'APK. Le périmètre exécuté est celui des commandes Android explicites et des services autorisés décrits ci-dessus.
+
+Ne sont pas fournis : clics et saisie arbitraires dans les applications, lecture automatique d'écran ou de notifications, capture autonome, envoi automatique de SMS, écoute permanente, mot de réveil, bouton flottant, tuile de réglages rapides, moteur LLM natif sur le téléphone, authentification directe par abonnement Codex, ni conformité à tous les transports et mécanismes OAuth MCP. La compatibilité physique Fairphone/Murena et les modèles des comptes réels restent à tester.
+
+L'APK contient les architectures ARM64, ARMv7, x86 et x86_64 de la bibliothèque OCR héritée. Ses segments ELF ont un alignement de **4096 octets**. La compatibilité avec une ROM imposant des pages de **16 Ko** n'a pas été validée et peut exiger une mise à jour ou suppression de cette dépendance. Le nouveau parcours Vision n'utilise pas cet OCR. Aucun essai ARM physique n'est annoncé.
+
+Les services amont inutilisés et non déclarés sont conservés à titre de référence dans `app/src/legacyReference/`, et non activés en demandant des permissions supplémentaires. Les anciennes mentions « Complete » ne prouvent pas le raccordement d'une fonction.
+
+## Reproduction
+
+Le dépôt contient désormais le Gradle Wrapper 8.2.1 et ses vérifications d'intégrité. Java 17, SDK Android 34 et Build Tools 34.0.0 sont nécessaires.
+
+```sh
+./gradlew --no-daemon --console=plain --stacktrace \
+  :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest
+```
+
+Avec un appareil ou un émulateur Android prêt :
+
+```sh
+./gradlew --no-daemon --console=plain --stacktrace :app:connectedDebugAndroidTest
+```
+
+Le workflow final est en lecture seule sur le dépôt : il compile les sources enregistrées, sans les modifier. Il réinstalle la même APK après que le lanceur de tests a nettoyé ses paquets, puis vérifie séparément le premier lancement et le rôle d'assistant. Les APK de développement issues de recompilations différentes peuvent avoir un certificat différent ; aucune continuité de mise à jour n'est garantie sans clé de signature stable gérée séparément.
