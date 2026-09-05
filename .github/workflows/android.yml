@@ -101,6 +101,9 @@ jobs:
           echo 'aosp_emulator_tests=passed' >> ci-results/build-info.txt
           adb="$ANDROID_HOME/platform-tools/adb"
           "$adb" logcat -d -b crash > ci-results/crashes.txt
+          # The Android test runner uninstalls the tested packages during cleanup.
+          # Reinstall the SAME compiled APK for an independent, clean first-launch check.
+          "$adb" install -r app/build/outputs/apk/debug/app-debug.apk | tee ci-results/clean-install.txt
           "$adb" shell pm clear com.openjarvis
           "$adb" shell am start -W -n com.openjarvis/.ui.MainActivity | tee ci-results/launch.txt
           sleep 3
