@@ -6,13 +6,13 @@ import androidx.room.*
 interface TaskNodeDao {
     @Query("SELECT * FROM task_nodes ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentTasks(limit: Int): List<TaskNode>
-    
-    @Query("SELECT * FROM task_nodes ORDER BY timestamp DESC LIMIT :limit")
+
+    @Query("SELECT * FROM task_nodes WHERE instr(lower(command), lower(:command)) > 0 ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getTasksByCommand(command: String, limit: Int = 10): List<TaskNode>
-    
+
     @Insert
     suspend fun insert(taskNode: TaskNode): Long
-    
+
     @Query("DELETE FROM task_nodes WHERE timestamp < :cutoff")
     suspend fun deleteOld(cutoff: Long)
 }

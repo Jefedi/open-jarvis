@@ -1,109 +1,69 @@
 package com.openjarvis.accessibility
 
+import android.content.Context
 import android.view.accessibility.AccessibilityNodeInfo
 import java.util.ArrayDeque
 
-class ScreenReader(private val service: JarvisAccessibilityService) {
+class ScreenReader(private val boundService: JarvisAccessibilityService?) {
+    // Activities can exist before accessibility is connected; resolve the service at read time.
+    @Suppress("UNUSED_PARAMETER")
+    constructor(context: Context) : this(null)
+    private val service: JarvisAccessibilityService?
+        get() = boundService ?: JarvisAccessibilityService.instance
 
     fun extractAllText(): String {
-        val rootNode = service.rootInActiveWindow ?: return ""
-        val builder = StringBuilder()
-        extractTextRecursive(rootNode, builder)
-        rootNode.recycle()
-        return builder.toString()
+        val root = service?.rootInActiveWindow ?: return ""
+        return try {
+            val builder = StringBuilder()
+            extractTextRecursive(root, builder)
+            builder.toString()
+        } finally { root.recycle() }
     }
 
     private fun extractTextRecursive(node: AccessibilityNodeInfo, builder: StringBuilder) {
-        val text = node.text
-        if (!text.isNullOrBlank()) {
-            builder.append(text)
-            builder.append(" ")
-        }
-        
-        val contentDesc = node.contentDescription
-        if (!contentDesc.isNullOrBlank()) {
-            builder.append(contentDesc)
-            builder.append(" ")
-        }
-        
-        for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { child ->
-                extractTextRecursive(child, builder)
-                child.recycle()
-            }
+        node.text?.takeIf { it.isNotBlank() }?.let { builder.append(it).append(' ') }
+        node.contentDescription?.takeIf { it.isNotBlank() }?.let { builder.append(it).append(' ') }
+        for (index in 0 until node.childCount) {
+            val child = node.getChild(index) ?: continue
+            try { extractTextRecursive(child, builder) } finally { child.recycle() }
         }
     }
 
     fun findNodeByText(text: String): AccessibilityNodeInfo? {
-        val rootNode = service.rootInActiveWindow ?: return null
-        val result = findNodeRecursive(rootNode, text)
-        rootNode.recycle()
-        return result
-    }
-
-    private fun findNodeRecursive(node: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
-        val normalizedText = text.lowercase()
-        
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(node)
-        
-        while (queue.isNotEmpty()) {
-            val current = queue.removeFirst()
-            
-            val nodeText = current.text?.toString()?.lowercase()
-            val contentDesc = current.contentDescription?.toString()?.lowercase()
-            
-            if (nodeText?.contains(normalizedText) == true || contentDesc?.contains(normalizedText) == true) {
-                return current
-            }
-            
-            for (i in 0 until current.childCount) {
-                current.getChild(i)?.let { child ->
-                    queue.add(child)
-                }
-            }
-            current.recycle()
+        val normalized = text.lowercase()
+        return findNode { node ->
+            node.text?.toString()?.lowercase()?.contains(normalized) == true ||
+                node.contentDescription?.toString()?.lowercase()?.contains(normalized) == true
         }
-        
-        return null
     }
 
     fun findNodeByHint(hint: String): AccessibilityNodeInfo? {
-        val rootNode = service.rootInActiveWindow ?: return null
-        val result = findHintRecursive(rootNode, hint)
-        rootNode.recycle()
-        return result
+        val normalized = hint.lowercase()
+        return findNode { it.hintText?.toString()?.lowercase()?.contains(normalized) == true }
     }
 
-    private fun findHintRecursive(node: AccessibilityNodeInfo, hint: String): AccessibilityNodeInfo? {
-        val normalizedHint = hint.lowercase()
-        
+    private fun findNode(matches: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        val root = service?.rootInActiveWindow ?: return null
         val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(node)
-        
-        while (queue.isNotEmpty()) {
-            val current = queue.removeFirst()
-            
-            val hintInfo = current.hintText?.toString()?.lowercase()
-            if (hintInfo?.contains(normalizedHint) == true) {
-                return current
+        queue.add(root)
+        try {
+            while (queue.isNotEmpty()) {
+                val current = queue.removeFirst()
+                var returned = false
+                try {
+                    if (matches(current)) {
+                        returned = true
+                        return current // Ownership passes to the caller; do not return a recycled node.
+                    }
+                    for (index in 0 until current.childCount) current.getChild(index)?.let { queue.add(it) }
+                } finally { if (!returned) current.recycle() }
             }
-            
-            for (i in 0 until current.childCount) {
-                current.getChild(i)?.let { child ->
-                    queue.add(child)
-                }
-            }
-            current.recycle()
-        }
-        
-        return null
+            return null
+        } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
     }
 
     fun getFocusedNode(): AccessibilityNodeInfo? {
-        val rootNode = service.rootInActiveWindow ?: return null
-        val focused = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-        rootNode.recycle()
-        return focused
+        val root = service?.rootInActiveWindow ?: return null
+        return try { root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) } finally { root.recycle() }
     }
 }
