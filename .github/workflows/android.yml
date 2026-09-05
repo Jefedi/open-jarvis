@@ -35,11 +35,12 @@ jobs:
           set -euo pipefail
           if [[ "$CAN_PUBLISH" == "true" ]]; then
             python3 scripts/apply_build_repairs.py
-            git add app docs/BUILD_REPAIRS_APPLIED
+            python3 scripts/wire_murena_runtime.py
+            git add app docs/BUILD_REPAIRS_APPLIED docs/MURENA_WIRING_APPLIED
             if ! git diff --cached --quiet; then
               git config user.name 'github-actions[bot]'
               git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-              git commit -m 'fix: apply reviewed Kotlin and test-source repairs'
+              git commit -m 'feat: wire the reviewed Murena runtime and independent voice engine'
               git push origin HEAD:refs/heads/murena/build-foundation
             fi
           fi
