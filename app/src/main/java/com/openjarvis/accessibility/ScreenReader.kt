@@ -4,10 +4,9 @@ import android.content.Context
 import android.view.accessibility.AccessibilityNodeInfo
 import java.util.ArrayDeque
 
-class ScreenReader(private val boundService: JarvisAccessibilityService?) {
-    // Activities can exist before accessibility is connected; resolve the service at read time.
-    @Suppress("UNUSED_PARAMETER")
-    constructor(context: Context) : this(null)
+class ScreenReader(context: Context) {
+    // A service is also a Context. One constructor avoids ambiguous overloads.
+    private val boundService = context as? JarvisAccessibilityService
     private val service: JarvisAccessibilityService?
         get() = boundService ?: JarvisAccessibilityService.instance
 
@@ -53,7 +52,7 @@ class ScreenReader(private val boundService: JarvisAccessibilityService?) {
                 try {
                     if (matches(current)) {
                         returned = true
-                        return current // Ownership passes to the caller; do not return a recycled node.
+                        return current
                     }
                     for (index in 0 until current.childCount) current.getChild(index)?.let { queue.add(it) }
                 } finally { if (!returned) current.recycle() }
