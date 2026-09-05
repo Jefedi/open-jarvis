@@ -190,7 +190,7 @@ class ProtocolTests {
     @Test fun mcpNegotiatesSessionAndEnforcesToolAllowlist() = runBlocking {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
-                val j = JSONObject(request.body.readUtf8())
+                val j = JSONObject(request.body.clone().readUtf8())
                 if (!j.has("id")) return MockResponse().setResponseCode(202)
                 val result = when (j.getString("method")) {
                     "initialize" -> JSONObject().put("protocolVersion", "2025-11-25").put("capabilities", JSONObject().put("tools", JSONObject())).put("serverInfo", JSONObject().put("name", "fixture").put("version", "1"))

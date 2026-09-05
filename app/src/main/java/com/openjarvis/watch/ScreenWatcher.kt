@@ -147,6 +147,10 @@ class ScreenWatcher(private val context: Context, private val agentCore: com.ope
     }
     
     private fun showNotification(title: String, body: String) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return
+        }
         val notification = android.app.Notification.Builder(context, "watch_channel")
             .setContentTitle(title)
             .setContentText(body)

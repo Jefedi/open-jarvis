@@ -98,6 +98,9 @@ class AudioController(private val context: Context, private val store: ProfileSt
     private suspend fun recordWav(): ByteArray = withContext(Dispatchers.IO) {
         val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         check(minimum > 0) { "Ce téléphone ne fournit pas le format d'enregistrement requis." }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            error("L'autorisation du microphone a été retirée.")
+        }
         val recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,
             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minimum * 2, 8192))
         audioRecord = recorder
