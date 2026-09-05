@@ -2,7 +2,6 @@ package com.openjarvis.murena
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -33,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference
 class AndroidFlowTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private lateinit var server: MockWebServer
+    private lateinit var serverBaseUrl: String
     private lateinit var context: Context
     private lateinit var store: ProfileStore
     private lateinit var runtime: AssistantRuntime
@@ -43,10 +43,13 @@ class AndroidFlowTest {
         compose.waitForIdle()
         compose.runOnIdle { runtime.newConversation() }
         server = MockWebServer(); server.start()
+        // MockWebServer.url() may perform reverse DNS. Resolve it on the instrumentation thread,
+        // not inside runOnIdle; never disable Android's network-on-main-thread protection.
+        serverBaseUrl = server.url("/v1").toString()
     }
     @After fun tearDown() { compose.runOnIdle { runtime.cancel() }; server.shutdown() }
     private fun connection(kind: String) = ConnectionProfile(id = kind, name = "Profil de test", kind = kind,
-        url = server.url("/v1").toString(), model = "fixture-model", secret = "fixture-only-secret", voice = "fixture-voice", streaming = false, allowLocalHttp = true)
+        url = serverBaseUrl, model = "fixture-model", secret = "fixture-only-secret", voice = "fixture-voice", streaming = false, allowLocalHttp = true)
 
     @Test fun launchesWithoutGooglePlayServicesAndShowsFrenchInput() {
         compose.onNodeWithTag("command_input").assertIsDisplayed()
@@ -54,6 +57,10 @@ class AndroidFlowTest {
         assertTrue(runCatching { context.packageManager.getPackageInfo("com.google.android.gms", 0) }.isFailure)
         val intent = Intent(Intent.ACTION_ASSIST).setPackage(context.packageName)
         assertEquals("com.openjarvis.ui.MainActivity", context.packageManager.resolveActivity(intent, 0)?.activityInfo?.name)
+        listOf(TextToSpeech.Engine.ACTION_CHECK_TTS_DATA, TextToSpeech.Engine.ACTION_GET_SAMPLE_TEXT, TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA).forEach { action ->
+            val check = Intent(action).setPackage(context.packageName)
+            assertEquals("com.openjarvis.murena.VoiceDataActivity", context.packageManager.resolveActivity(check, 0)?.activityInfo?.name)
+        }
     }
     @Test fun userCanSaveAProfileAndItSurvivesActivityRecreationEncrypted() {
         compose.onNodeWithTag("tab_1").performClick()
