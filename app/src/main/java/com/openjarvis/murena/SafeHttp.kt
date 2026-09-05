@@ -16,6 +16,7 @@ import okhttp3.Response
 import org.json.JSONObject
 import java.io.IOException
 import java.net.InetAddress
+import java.net.Proxy
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
@@ -46,6 +47,10 @@ object SafeHttp {
             "Placez les identifiants dans les champs chiffrés, pas dans l'URL. Les fragments et paramètres d'URL ne sont pas acceptés."
         }
         require(url.isHttps || (url.scheme == "http" && allowLocalHttp)) { "HTTPS est requis. HTTP doit être autorisé explicitement pour un serveur local." }
+        // Literal IP routes can skip OkHttp's DNS callback, so validate them before creating a request.
+        if (!url.isHttps && (url.host.contains(':') || url.host.matches(Regex("[0-9.]+")))) {
+            require(isLocal(InetAddress.getByName(url.host))) { "HTTP est limité aux adresses privées ou de boucle locale." }
+        }
         return url
     }
     fun isLocal(address: InetAddress): Boolean = address.isLoopbackAddress || address.isSiteLocalAddress ||
@@ -55,6 +60,10 @@ object SafeHttp {
         .callTimeout(profile.timeoutSeconds.toLong(), TimeUnit.SECONDS)
         .readTimeout(profile.timeoutSeconds.toLong(), TimeUnit.SECONDS)
         .writeTimeout(profile.timeoutSeconds.toLong(), TimeUnit.SECONDS)
+        .apply {
+            // A forward proxy could resolve a public target without consulting this DNS guard.
+            if (!validateUrl(profile.url, profile.allowLocalHttp).isHttps) proxy(Proxy.NO_PROXY)
+        }
         .dns(object : Dns {
             override fun lookup(hostname: String): List<InetAddress> {
                 val addresses = Dns.SYSTEM.lookup(hostname)
