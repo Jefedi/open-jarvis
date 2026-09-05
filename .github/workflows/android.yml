@@ -17,7 +17,7 @@ concurrency:
 jobs:
   source:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
     outputs:
@@ -26,7 +26,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: ${{ github.event_name == 'push' && github.ref == 'refs/heads/murena/build-foundation' && github.repository == 'Jefedi/open-jarvis' }}
-      - name: Versionner les migrations explicites de sources
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+        with:
+          gradle-version: '8.2.1'
+          cache-read-only: true
+      - name: Versionner les migrations explicites et le wrapper officiel
         id: source
         shell: bash
         env:
@@ -37,11 +45,21 @@ jobs:
             python3 scripts/apply_build_repairs.py
             python3 scripts/wire_murena_runtime.py
             python3 scripts/repair_integrated_build.py
-            git add app docs/BUILD_REPAIRS_APPLIED docs/MURENA_WIRING_APPLIED
+            if [[ ! -f gradle/wrapper/gradle-wrapper.jar ]]; then
+              bootstrap="$(mktemp -d)"
+              printf "rootProject.name='wrapper-bootstrap'\n" > "$bootstrap/settings.gradle"
+              gradle --no-daemon -p "$bootstrap" wrapper --gradle-version 8.2.1 --distribution-type bin --gradle-distribution-sha256-sum 03ec176d388f2aa99defcadc3ac6adf8dd2bce5145a129659537c0874dea5ad1
+              mkdir -p gradle/wrapper
+              cp "$bootstrap/gradlew" "$bootstrap/gradlew.bat" .
+              cp "$bootstrap/gradle/wrapper/gradle-wrapper.jar" "$bootstrap/gradle/wrapper/gradle-wrapper.properties" gradle/wrapper/
+              chmod +x gradlew
+            fi
+            printf '%s  %s\n' a8451eeda314d0568b5340498b36edf147a8f0d692c5ff58082d477abe9146e4 gradle/wrapper/gradle-wrapper.jar | sha256sum --check --strict
+            git add app docs/BUILD_REPAIRS_APPLIED docs/MURENA_WIRING_APPLIED gradlew gradlew.bat gradle/wrapper
             if ! git diff --cached --quiet; then
               git config user.name 'github-actions[bot]'
               git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-              git commit -m 'fix: apply reviewed integrated build diagnostics'
+              git commit -m 'build: commit reviewed final repairs and verified Gradle 8.2.1 wrapper'
               git push origin HEAD:refs/heads/murena/build-foundation
             fi
           fi
@@ -68,10 +86,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Installer Gradle 8.2.1
+      - name: Préparer Gradle et vérifier les wrappers
         uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
         with:
-          gradle-version: '8.2.1'
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Installer le SDK Android nécessaire
         shell: bash
@@ -89,7 +106,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon --console=plain --stacktrace --continue \
+          ./gradlew --no-daemon --console=plain --stacktrace --continue \
             :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest \
             2>&1 | tee ci-results/gradle.log
       - name: Démarrer un Android AOSP sans Google Play Services
@@ -99,15 +116,24 @@ jobs:
           "$SDK_MANAGER" --sdk_root="$ANDROID_HOME" 'emulator' 'system-images;android-34;default;x86_64' 2>&1 | tee ci-results/emulator-sdk.log
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
+          export ANDROID_USER_HOME="$RUNNER_TEMP/jarvis-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
           avdmanager="$(dirname "$SDK_MANAGER")/avdmanager"
-          printf 'no\n' | "$avdmanager" create avd --force --name jarvis-test --package 'system-images;android-34;default;x86_64' --device pixel_6
+          printf 'no\n' | "$avdmanager" create avd --force --name jarvis-test --path "$ANDROID_AVD_HOME/jarvis-test.avd" --package 'system-images;android-34;default;x86_64' --device pixel_6
+          test -f "$ANDROID_AVD_HOME/jarvis-test.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | tee ci-results/avds.txt
+          grep -Fx 'jarvis-test' ci-results/avds.txt
           "$ANDROID_HOME/emulator/emulator" -avd jarvis-test -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -memory 2048 > ci-results/emulator.log 2>&1 &
-          echo "emulator_pid=$!" >> ci-results/build-info.txt
+          emulator_pid=$!
+          echo "emulator_pid=$emulator_pid" >> ci-results/build-info.txt
           adb="$ANDROID_HOME/platform-tools/adb"
-          timeout 180 "$adb" wait-for-device
           ready=false
-          for i in $(seq 1 150); do
-            if [[ "$("$adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then ready=true; break; fi
+          for i in $(seq 1 180); do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then tail -n 80 ci-results/emulator.log; exit 1; fi
+            if [[ "$(timeout 5 "$adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then ready=true; break; fi
             sleep 2
           done
           "$ready"
@@ -121,7 +147,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon --console=plain --stacktrace :app:connectedDebugAndroidTest 2>&1 | tee ci-results/android-tests.log
+          ./gradlew --no-daemon --console=plain --stacktrace :app:connectedDebugAndroidTest 2>&1 | tee ci-results/android-tests.log
           echo 'aosp_emulator_tests=passed' >> ci-results/build-info.txt
           adb="$ANDROID_HOME/platform-tools/adb"
           "$adb" logcat -d -b crash > ci-results/crashes.txt
@@ -150,6 +176,16 @@ jobs:
             ci-results/signature.txt
           if-no-files-found: error
           retention-days: 14
+      - name: Capturer les diagnostics Android disponibles
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ci-results
+          adb="${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb"
+          if [[ -x "$adb" ]] && "$adb" get-state >/dev/null 2>&1; then
+            "$adb" logcat -d > ci-results/logcat.txt
+            "$adb" exec-out screencap -p > ci-results/last-screen.png
+          fi
       - name: Conserver les diagnostics même en cas d'échec
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
