@@ -7,11 +7,10 @@ import com.openjarvis.llm.providers.*
 import com.openjarvis.local.ModelManager
 
 class UniversalAdapter(private val context: Context) {
-    
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
-    
+
     private val prefs = EncryptedSharedPreferences.create(
         context,
         "jarvis_encrypted_prefs",
@@ -19,13 +18,13 @@ class UniversalAdapter(private val context: Context) {
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
-    
+
     fun getActiveProvider(): LLMProvider {
-        val name = prefs.getString("provider_name", "Groq")
-        val baseUrl = prefs.getString("provider_base_url", "")
-        val apiKey = prefs.getString("provider_api_key", "")
-        val model = prefs.getString("provider_model", "")
-        
+        val name = prefs.getString("provider_name", "Groq") ?: "Groq"
+        val baseUrl = prefs.getString("provider_base_url", "").orEmpty()
+        val apiKey = prefs.getString("provider_api_key", "").orEmpty()
+        val model = prefs.getString("provider_model", "").orEmpty()
+
         return when (name) {
             "Groq" -> GroqProvider(apiKey, model)
             "Google Gemini", "gemini" -> GeminiProvider(apiKey, model)
@@ -42,14 +41,12 @@ class UniversalAdapter(private val context: Context) {
             else -> CustomProvider(baseUrl, apiKey, model)
         }
     }
-    
-    suspend fun complete(
-        systemPrompt: String,
-        userMessage: String
-    ): Result<String> = getActiveProvider().complete(systemPrompt, userMessage)
-    
+
+    suspend fun complete(systemPrompt: String, userMessage: String): Result<String> =
+        getActiveProvider().complete(systemPrompt, userMessage)
+
     suspend fun testConnection(): Result<Long> = getActiveProvider().testConnection()
-    
+
     fun saveSettings(name: String, baseUrl: String, apiKey: String, model: String) {
         prefs.edit().apply {
             putString("provider_name", name)
@@ -59,36 +56,30 @@ class UniversalAdapter(private val context: Context) {
             apply()
         }
     }
-    
+
     fun getProviderName(): String = prefs.getString("provider_name", "Groq") ?: "Groq"
-    
+
     companion object {
+        @Volatile
         private var modelManager: ModelManager? = null
-        
+
         val AVAILABLE_PROVIDERS = listOf(
-            "Groq",
-            "Google Gemini",
-            "OpenRouter",
-            "Anthropic Claude",
-            "OpenAI",
-            "Ollama (Local)",
-            "Local (LlamaCpp)"
+            "Groq", "Google Gemini", "OpenRouter", "Anthropic Claude",
+            "OpenAI", "Ollama (Local)", "Local (LlamaCpp)", "Custom"
         )
-        
+
         fun getModelManager(context: Context): ModelManager {
             return modelManager ?: synchronized(this) {
                 modelManager ?: ModelManager(context.applicationContext).also { modelManager = it }
             }
         }
-        
-        fun isLocalModelLoaded(): Boolean {
-            return modelManager?.state?.value is ModelManager.ModelState.ModelLoaded
-        }
-        
-        suspend fun loadLocalModel(tier: ModelManager.ModelTier): Result<Unit> {
-            return modelManager?.loadModel(tier) ?: Result.failure(Exception("ModelManager not initialized"))
-        }
-        
+
+        fun isLocalModelLoaded(): Boolean =
+            modelManager?.state?.value is ModelManager.ModelState.ModelLoaded
+
+        suspend fun loadLocalModel(tier: ModelManager.ModelTier): Result<Unit> =
+            modelManager?.loadModel(tier) ?: Result.failure(Exception("ModelManager not initialized"))
+
         fun getDefaultModel(provider: String): String = when (provider) {
             "Groq" -> "llama-3.1-70b-versatile"
             "Google Gemini" -> "gemini-1.5-flash"
